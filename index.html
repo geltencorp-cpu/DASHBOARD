@@ -42,7 +42,7 @@
     <div id="root" class="h-full"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
         // --- 아이콘 컴포넌트 ---
         const Icon = ({ children, size = 14, className = "", color = "currentColor" }) => (
@@ -63,7 +63,9 @@
             DollarSign: (p) => <Icon {...p}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></Icon>,
             Crown: (p) => <Icon {...p}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></Icon>,
             Award: (p) => <Icon {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></Icon>,
-            Database: (p) => <Icon {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></Icon>
+            Database: (p) => <Icon {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></Icon>,
+            LinkIcon: (p) => <Icon {...p}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></Icon>,
+            CheckCircle2: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></Icon>
         };
 
         // --- 유틸리티 ---
@@ -156,7 +158,7 @@
             const [salesGid, setSalesGid] = useState('1883872851');
             const [tempSalesInput, setTempSalesInput] = useState('');
 
-            // 기본 컬럼 매핑 (사용자 환경에 맞게 수정 가능)
+            // 기본 컬럼 매핑
             const [colMap, setColMap] = useState({
                 manager: 2,   // C열
                 client: 3,    // D열
@@ -164,7 +166,8 @@
                 revenue: 7    // H열
             });
 
-            const fetchData = async () => {
+            // 데이터를 불러오는 함수 (useCallback으로 감싸서 useEffect 의존성 해결)
+            const fetchData = useCallback(async () => {
                 setLoading(true);
                 const getCsvUrl = (id, gid) => `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
                 
@@ -182,44 +185,74 @@
                     const res = await fetch(getCsvUrl(SHEET_ID, salesGid));
                     if (res.ok) {
                         const parsed = parseCSV(await res.text());
-                        // 헤더 및 첫 줄 미리보기용 저장
                         if (parsed.length > 0) setSalesHeader(parsed[0]);
                         if (parsed.length > 1) setSalesFirstRow(parsed[1]);
-                        
-                        // 데이터 저장 (헤더 제외)
                         setSalesData(parsed.slice(1));
                     }
                 } catch(e) { setSalesData(MOCK_SALES); }
                 
                 setLoading(false);
-            };
+            }, [activityGid, salesGid]); // GID가 바뀔 때마다 함수 재생성
 
+            // 초기 로딩 및 매일 18:10 업데이트 스케줄링
             useEffect(() => {
+                // 1. 즉시 실행 (초기 데이터 로드)
                 fetchData();
-                const interval = setInterval(fetchData, 60000);
-                return () => clearInterval(interval);
-            }, []);
+
+                // 2. 다음 업데이트 스케줄링 (매일 18:10)
+                let timerId;
+                const scheduleNextUpdate = () => {
+                    const now = new Date();
+                    let target = new Date();
+                    target.setHours(18, 10, 0, 0); // 오늘 18:10
+
+                    // 이미 지났으면 내일 18:10으로 설정
+                    if (now >= target) {
+                        target.setDate(target.getDate() + 1);
+                    }
+
+                    const msUntilTarget = target.getTime() - now.getTime();
+                    console.log(`다음 업데이트까지 남은 시간: ${(msUntilTarget / 1000 / 60).toFixed(1)}분`);
+
+                    timerId = setTimeout(() => {
+                        fetchData(); // 데이터 갱신
+                        scheduleNextUpdate(); // 다음 날을 위해 재귀 호출
+                    }, msUntilTarget);
+                };
+
+                scheduleNextUpdate();
+
+                return () => clearTimeout(timerId); // 컴포넌트 해제 시 타이머 정리
+            }, [fetchData]);
 
             const handleApplySettings = () => {
                 if (tempSalesInput) setSalesGid(extractGid(tempSalesInput));
                 setTimeout(() => { fetchData(); setShowSettings(false); }, 100);
             };
 
-            // Aggregation
+            // Aggregation - 영업 활동 (기타 및 빈값 제거)
             const processedActivityGroups = useMemo(() => {
                 const groups = {};
-                (activityData.length ? activityData : MOCK_ACTIVITY).forEach(item => {
+                const source = activityData.length ? activityData : MOCK_ACTIVITY;
+                
+                source.forEach(item => {
                     const p = item.person;
-                    const t = item.type ? item.type.trim() : '기타';
-                    if (!p) return;
+                    const t = item.type ? item.type.trim() : '';
+                    
+                    // 빈 값이나 '기타'라는 텍스트가 있으면 제외
+                    if (!p || !t || t === '기타') return; 
+
                     if (!groups[t]) groups[t] = {};
                     groups[t][p] = (groups[t][p] || 0) + 1;
                 });
+
                 return Object.keys(groups).map(type => {
-                    const data = Object.entries(groups[type]).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+                    const data = Object.entries(groups[type])
+                        .map(([name, count]) => ({ name, count }))
+                        .sort((a, b) => b.count - a.count);
                     const totalCount = data.reduce((a, c) => a + c.count, 0);
                     return { type, data, totalCount };
-                }).sort((a, b) => b.totalCount - a.totalCount);
+                }).filter(g => g.totalCount > 0).sort((a, b) => b.totalCount - a.totalCount);
             }, [activityData]);
 
             const processedSales = useMemo(() => {
@@ -233,12 +266,10 @@
                     if (!manager) return;
                     if (!aggregated[manager]) aggregated[manager] = { 담당자: manager, 매출액: 0, 계약건수: 0 };
 
-                    // 계약 건수: 숫자가 있으면 그 값, 없으면 0 (1로 추측하지 않음)
                     let count = 0;
                     if (countStr && !isNaN(parseInt(countStr))) count = parseInt(countStr);
-                    // 0보다 클 때만 집계
+                    
                     if (count > 0) aggregated[manager].계약건수 += count;
-
                     if (revStr) aggregated[manager].매출액 += parseCurrency(revStr);
                 });
                 return Object.values(aggregated);
@@ -247,6 +278,10 @@
             const chartData = useMemo(() => processedSales.filter(d => d.매출액 > 0 || d.계약건수 > 0), [processedSales]);
             const topSales = useMemo(() => [...processedSales].filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액).slice(0, 3), [processedSales]);
             const topContracts = useMemo(() => [...processedSales].filter(d => d.계약건수 > 0).sort((a, b) => b.계약건수 - a.계약건수).slice(0, 3), [processedSales]);
+
+            // 총합 계산
+            const totalRevenue = useMemo(() => processedSales.reduce((acc, curr) => acc + curr.매출액, 0), [processedSales]);
+            const totalContractsCount = useMemo(() => processedSales.reduce((acc, curr) => acc + curr.계약건수, 0), [processedSales]);
 
             // Chart Renderers
             const renderActivityChart = (group, idx, Recharts) => {
@@ -313,6 +348,7 @@
                             <h1 className="text-sm font-bold text-white">Sales Command Center</h1>
                         </div>
                         <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-500 mr-2 hidden sm:block">자동 업데이트: 매일 18:10</span>
                             <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-white"><Icons.Settings size={14} /></button>
                             <button onClick={fetchData} className={`text-slate-400 hover:text-white ${loading ? 'animate-spin' : ''}`}><Icons.RefreshCw size={14} /></button>
                         </div>
@@ -345,36 +381,45 @@
                     )}
 
                     {/* Main Content (3:1 Ratio) */}
-                    <div className="flex-1 p-2 overflow-hidden grid grid-cols-12 grid-rows-[65%_35%] gap-2">
+                    <div className="flex-1 p-2 overflow-hidden grid grid-cols-12 gap-2">
                         
-                        {/* 1. Daily Activities (Scrollable) */}
-                        <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
-                            <div className="flex items-center gap-1 mb-1 text-blue-400 font-bold text-xs"><Icons.Briefcase size={12}/> Daily Activities [영업활동]</div>
-                            <div className="flex-1 overflow-y-auto pr-1 space-y-1">
+                        {/* 1. Daily Activities (Left Column, Full Height) */}
+                        <div className="col-span-3 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col h-full overflow-hidden">
+                            <div className="flex items-center gap-1 mb-2 text-blue-400 font-bold text-xs shrink-0 border-b border-slate-700/50 pb-2">
+                                <Icons.Briefcase size={12}/> Daily Activities [영업활동]
+                            </div>
+                            <div className="flex-1 overflow-y-auto pr-1 space-y-2">
                                 {processedActivityGroups.map((g, i) => (
-                                    <div key={g.type} className="h-28 bg-slate-900/30 rounded p-1 flex flex-col">
-                                        <span className="text-[10px] text-slate-300 flex items-center gap-1"><Icons.Layers size={10} style={{color:CHART_COLORS[i%8]}}/> {g.type} ({g.totalCount})</span>
-                                        <div className="flex-1"><SafeRecharts render={(r) => renderActivityChart(g, i, r)} /></div>
+                                    <div key={g.type} className="h-32 bg-slate-900/30 rounded p-1 flex flex-col shrink-0">
+                                        <span className="text-[10px] text-slate-300 flex items-center gap-1 mb-1 px-1">
+                                            <Icons.Layers size={10} style={{color:CHART_COLORS[i%8]}}/> {g.type} ({g.totalCount})
+                                        </span>
+                                        <div className="flex-1 min-h-0"><SafeRecharts render={(r) => renderActivityChart(g, i, r)} /></div>
                                     </div>
                                 ))}
+                                {processedActivityGroups.length === 0 && <div className="text-center text-xs text-slate-500 py-4">데이터 없음</div>}
                             </div>
                         </div>
 
-                        {/* 2. Contract Count */}
-                        <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
-                            <div className="flex items-center gap-1 mb-1 text-amber-400 font-bold text-xs"><Icons.FileText size={12}/> Contract Count [계약건수]</div>
-                            <div className="flex-1"><SafeRecharts render={renderContractChart} /></div>
-                        </div>
-
-                        {/* 3. Revenue */}
-                        <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
-                            <div className="flex items-center gap-1 mb-1 text-emerald-400 font-bold text-xs"><Icons.DollarSign size={12}/> Revenue Status [매출현황]</div>
-                            <div className="flex-1"><SafeRecharts render={renderRevenueChart} /></div>
-                        </div>
-
-                        {/* Bottom Row (Side by Side) */}
-                        <div className="col-span-12 grid grid-cols-2 gap-2 min-h-0">
+                        {/* Right Column (Rest of the charts) */}
+                        <div className="col-span-9 grid grid-cols-2 grid-rows-2 gap-2 h-full">
                             
+                            {/* 2. Revenue (Position Swapped) */}
+                            <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
+                                <div className="flex items-center gap-1 mb-1 text-emerald-400 font-bold text-xs">
+                                    <Icons.DollarSign size={12}/> Revenue Status [매출현황 {formatKoreanCurrency(totalRevenue)}원]
+                                </div>
+                                <div className="flex-1"><SafeRecharts render={renderRevenueChart} /></div>
+                            </div>
+
+                            {/* 3. Contract Count (Position Swapped) */}
+                            <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
+                                <div className="flex items-center gap-1 mb-1 text-amber-400 font-bold text-xs">
+                                    <Icons.FileText size={12}/> Contract Count [계약건수 {totalContractsCount}건]
+                                </div>
+                                <div className="flex-1"><SafeRecharts render={renderContractChart} /></div>
+                            </div>
+
                             {/* Sales Top 3 */}
                             <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg flex flex-col overflow-hidden">
                                 <div className="h-7 px-2 flex items-center gap-1 bg-slate-700/30 border-b border-slate-700/50 text-yellow-400 font-bold text-xs"><Icons.Crown size={12}/> Sales Top 3</div>
