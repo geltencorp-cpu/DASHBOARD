@@ -8,15 +8,18 @@
     <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 2. React & ReactDOM (버전 명시) -->
-    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <!-- 2. React & ReactDOM -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     
-    <!-- 3. Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 3. Prop-types -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
     
-    <!-- 4. Recharts (안정적인 버전 명시) -->
-    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+    <!-- 4. Recharts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+
+    <!-- 5. Babel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
     <style>
         html, body, #root {
@@ -28,22 +31,11 @@
             background-color: #0f172a; /* slate-900 */
             color: #f1f5f9;
         }
-        /* 커스텀 스크롤바 */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        /* 컴팩트한 스크롤바 */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        
-        /* 로딩 애니메이션 */
-        .shimmer {
-            animation: shimmer 2s infinite linear;
-            background: linear-gradient(to right, #1e293b 4%, #334155 25%, #1e293b 36%);
-            background-size: 1000px 100%;
-        }
-        @keyframes shimmer {
-            0% { background-position: -1000px 0; }
-            100% { background-position: 1000px 0; }
-        }
     </style>
 </head>
 <body>
@@ -52,35 +44,33 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- [아이콘 직접 구현] 외부 의존성 없이 SVG로 직접 그리기 ---
-        const Icon = ({ children, size = 16, className = "", color = "currentColor" }) => (
+        // --- 아이콘 컴포넌트 ---
+        const Icon = ({ children, size = 14, className = "", color = "currentColor" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {children}
             </svg>
         );
 
         const Icons = {
-            LayoutDashboard: (props) => <Icon {...props}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></Icon>,
-            RefreshCw: (props) => <Icon {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
-            Settings: (props) => <Icon {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>,
-            Briefcase: (props) => <Icon {...props}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></Icon>,
-            Phone: (props) => <Icon {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></Icon>,
-            Mail: (props) => <Icon {...props}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></Icon>,
-            Layers: (props) => <Icon {...props}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></Icon>,
-            FileText: (props) => <Icon {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></Icon>,
-            DollarSign: (props) => <Icon {...props}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></Icon>,
-            Crown: (props) => <Icon {...props}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></Icon>,
-            Award: (props) => <Icon {...props}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></Icon>,
-            User: (props) => <Icon {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></Icon>,
-            Database: (props) => <Icon {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></Icon>,
-            LinkIcon: (props) => <Icon {...props}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></Icon>,
-            CheckCircle2: (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></Icon>
+            LayoutDashboard: (p) => <Icon {...p}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></Icon>,
+            RefreshCw: (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
+            Settings: (p) => <Icon {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>,
+            Briefcase: (p) => <Icon {...p}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></Icon>,
+            Phone: (p) => <Icon {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></Icon>,
+            Mail: (p) => <Icon {...p}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></Icon>,
+            Layers: (p) => <Icon {...p}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></Icon>,
+            FileText: (p) => <Icon {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></Icon>,
+            DollarSign: (p) => <Icon {...p}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></Icon>,
+            Crown: (p) => <Icon {...p}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></Icon>,
+            Award: (p) => <Icon {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></Icon>,
+            Database: (p) => <Icon {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></Icon>
         };
 
-        // --- 유틸리티 함수 ---
+        // --- 유틸리티 ---
         const parseCSV = (str) => {
             const arr = [];
-            let quote = false, col = 0, row = 0;
+            let quote = false;
+            let col = 0, row = 0;
             arr[row] = arr[row] || [];
             arr[row][col] = arr[row][col] || '';
             for (let c = 0; c < str.length; c++) {
@@ -123,48 +113,50 @@
         };
 
         const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'];
+        const COLORS = { outbound: '#3b82f6', email: '#8b5cf6', contract: '#f59e0b', revenue: '#10b981' };
 
-        // --- Mock Data ---
-        const MOCK_ACTIVITY = [{ person: '김철수', type: '아웃바운드' }, { person: '이영희', type: '메일 영업' }];
         const MOCK_SALES = [[null, '2025-01', '김철수', 'A고객사', '1', null, null, '₩50,000,000']];
+        const MOCK_ACTIVITY = [{ person: '김철수', type: '아웃바운드' }, { person: '이영희', type: '메일 영업' }];
 
-        // --- 차트 래퍼 컴포넌트 (Recharts 안전 로딩) ---
-        // Recharts가 로드되지 않았을 때 안전하게 빈 영역을 보여주거나 로딩중을 표시
+        // Recharts Safe Wrapper
         const SafeRecharts = ({ render }) => {
             const [lib, setLib] = useState(window.Recharts);
+            const [isTimeout, setIsTimeout] = useState(false);
 
             useEffect(() => {
                 if (lib) return;
+                const start = Date.now();
                 const timer = setInterval(() => {
                     if (window.Recharts) {
                         setLib(window.Recharts);
                         clearInterval(timer);
+                    } else if (Date.now() - start > 5000) { 
+                        setIsTimeout(true);
+                        clearInterval(timer);
                     }
-                }, 200);
+                }, 100);
                 return () => clearInterval(timer);
             }, [lib]);
 
-            if (!lib) return <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs bg-slate-900/50 rounded animate-pulse">차트 로딩 중...</div>;
-            
+            if (isTimeout) return <div className="flex h-full items-center justify-center text-xs text-red-400">차트 로드 실패 <button onClick={()=>window.location.reload()} className="ml-2 underline">새로고침</button></div>;
+            if (!lib) return <div className="flex h-full items-center justify-center text-xs text-slate-500 animate-pulse">차트 로딩...</div>;
             return render(lib);
         };
 
-        // --- 메인 컴포넌트 ---
         function SalesDashboard() {
-            // 데이터 상태
             const [activityData, setActivityData] = useState([]);
             const [salesData, setSalesData] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [salesPreviewRow, setSalesPreviewRow] = useState([]);
+            const [salesHeader, setSalesHeader] = useState([]);
+            const [salesFirstRow, setSalesFirstRow] = useState([]);
             const [showSettings, setShowSettings] = useState(false);
 
-            // 설정
             const SHEET_ID = '1W0OXOMzCvq6KlBwWpnnXQTgcOaC1gK4zftTEq5qmfns';
             const [activityGid, setActivityGid] = useState('0');
             const [salesGid, setSalesGid] = useState('1883872851');
             const [tempSalesInput, setTempSalesInput] = useState('');
 
-            // 컬럼 매핑
+            // 기본 컬럼 매핑 (사용자 환경에 맞게 수정 가능)
             const [colMap, setColMap] = useState({
                 manager: 2,   // C열
                 client: 3,    // D열
@@ -172,34 +164,33 @@
                 revenue: 7    // H열
             });
 
-            // 데이터 불러오기 함수
             const fetchData = async () => {
                 setLoading(true);
                 const getCsvUrl = (id, gid) => `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
                 
+                // 1. Activity
                 try {
-                    const actRes = await fetch(getCsvUrl(SHEET_ID, activityGid));
-                    if (actRes.ok) {
-                        const text = await actRes.text();
-                        const parsed = parseCSV(text);
-                        // 헤더 제외, 데이터 매핑
-                        const data = parsed.slice(1).map(row => ({ 
-                            person: row[2], // C열
-                            type: row[3]    // D열
-                        })).filter(r => r.person && r.type);
-                        setActivityData(data);
+                    const res = await fetch(getCsvUrl(SHEET_ID, activityGid));
+                    if (res.ok) {
+                        const parsed = parseCSV(await res.text());
+                        setActivityData(parsed.slice(1).map(r => ({ person: r[2], type: r[3] })).filter(r => r.person));
                     }
-                } catch (e) { setActivityData(MOCK_ACTIVITY); }
+                } catch(e) { setActivityData(MOCK_ACTIVITY); }
 
+                // 2. Sales
                 try {
-                    const salesRes = await fetch(getCsvUrl(SHEET_ID, salesGid));
-                    if (salesRes.ok) {
-                        const text = await salesRes.text();
-                        const parsed = parseCSV(text);
+                    const res = await fetch(getCsvUrl(SHEET_ID, salesGid));
+                    if (res.ok) {
+                        const parsed = parseCSV(await res.text());
+                        // 헤더 및 첫 줄 미리보기용 저장
+                        if (parsed.length > 0) setSalesHeader(parsed[0]);
+                        if (parsed.length > 1) setSalesFirstRow(parsed[1]);
+                        
+                        // 데이터 저장 (헤더 제외)
                         setSalesData(parsed.slice(1));
-                        if (parsed.length > 1) setSalesPreviewRow(parsed[1]);
                     }
-                } catch (e) { setSalesData(MOCK_SALES); }
+                } catch(e) { setSalesData(MOCK_SALES); }
+                
                 setLoading(false);
             };
 
@@ -214,7 +205,7 @@
                 setTimeout(() => { fetchData(); setShowSettings(false); }, 100);
             };
 
-            // 데이터 가공 로직
+            // Aggregation
             const processedActivityGroups = useMemo(() => {
                 const groups = {};
                 (activityData.length ? activityData : MOCK_ACTIVITY).forEach(item => {
@@ -225,9 +216,7 @@
                     groups[t][p] = (groups[t][p] || 0) + 1;
                 });
                 return Object.keys(groups).map(type => {
-                    const data = Object.entries(groups[type])
-                        .map(([name, count]) => ({ name, count }))
-                        .sort((a, b) => b.count - a.count);
+                    const data = Object.entries(groups[type]).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
                     const totalCount = data.reduce((a, c) => a + c.count, 0);
                     return { type, data, totalCount };
                 }).sort((a, b) => b.totalCount - a.totalCount);
@@ -242,49 +231,36 @@
                     const revStr = row[colMap.revenue];
 
                     if (!manager) return;
-                    if (!aggregated[manager]) {
-                        aggregated[manager] = { 담당자: manager, 매출액: 0, 계약건수: 0, 계약처목록: [] };
-                    }
-                    
+                    if (!aggregated[manager]) aggregated[manager] = { 담당자: manager, 매출액: 0, 계약건수: 0 };
+
+                    // 계약 건수: 숫자가 있으면 그 값, 없으면 0 (1로 추측하지 않음)
                     let count = 0;
                     if (countStr && !isNaN(parseInt(countStr))) count = parseInt(countStr);
-                    if (count > 0) {
-                        aggregated[manager].계약건수 += count;
-                        if (client) aggregated[manager].계약처목록.push(client);
-                    }
-                    if (revStr) {
-                        aggregated[manager].매출액 += parseCurrency(revStr);
-                    }
+                    // 0보다 클 때만 집계
+                    if (count > 0) aggregated[manager].계약건수 += count;
+
+                    if (revStr) aggregated[manager].매출액 += parseCurrency(revStr);
                 });
-                return Object.values(aggregated).map(item => ({ 
-                    ...item, 
-                    대표계약처: item.계약처목록[0] || '-' 
-                }));
+                return Object.values(aggregated);
             }, [salesData, colMap]);
 
-            // 차트용 필터링 (0값 제외)
             const chartData = useMemo(() => processedSales.filter(d => d.매출액 > 0 || d.계약건수 > 0), [processedSales]);
             const topSales = useMemo(() => [...processedSales].filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액).slice(0, 3), [processedSales]);
             const topContracts = useMemo(() => [...processedSales].filter(d => d.계약건수 > 0).sort((a, b) => b.계약건수 - a.계약건수).slice(0, 3), [processedSales]);
 
-            // 차트 렌더러 함수들
+            // Chart Renderers
             const renderActivityChart = (group, idx, Recharts) => {
                 const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
-                
-                const CustomBarLabel = ({ x, y, width, value }) => {
-                    if (!value || value === 0) return null;
-                    return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{value}</text>;
-                };
-
+                const CustomLabel = ({ x, y, width, value }) => value ? <text x={x+width/2} y={y-3} fill="#fff" textAnchor="middle" fontSize={10} fontWeight="bold">{value}</text> : null;
                 return (
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={group.data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <BarChart data={group.data} margin={{ top: 15, right: 5, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 10}} interval={0} />
-                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} width={20} />
-                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px' }} />
-                            <Bar dataKey="count" fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={30}>
-                                <LabelList dataKey="count" content={<CustomBarLabel />} />
+                            <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 9}} interval={0} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 9}} />
+                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '10px' }} />
+                            <Bar dataKey="count" fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={25}>
+                                <LabelList dataKey="count" content={<CustomLabel />} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
@@ -293,22 +269,16 @@
 
             const renderContractChart = (Recharts) => {
                 const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
-                const data = chartData.filter(d => d.계약건수 > 0);
-                
-                const CustomBarLabel = ({ x, y, width, value }) => {
-                    if (!value || value === 0) return null;
-                    return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{value}</text>;
-                };
-
+                const CustomLabel = ({ x, y, width, value }) => value ? <text x={x+width/2} y={y-3} fill="#fff" textAnchor="middle" fontSize={10} fontWeight="bold">{value}</text> : null;
                 return (
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data} margin={{ top: 15, right: 10, left: 0, bottom: 0 }}>
+                        <BarChart data={chartData.filter(d => d.계약건수 > 0)} margin={{ top: 15, right: 5, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11}} interval={0} />
-                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} allowDecimals={false} />
-                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} />
-                            <Bar dataKey="계약건수" name="계약 수" fill={COLORS.contract} radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                <LabelList dataKey="계약건수" content={<CustomBarLabel />} />
+                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 9}} interval={0} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 9}} allowDecimals={false} />
+                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '10px' }} />
+                            <Bar dataKey="계약건수" fill={COLORS.contract} radius={[3, 3, 0, 0]} maxBarSize={30}>
+                                <LabelList dataKey="계약건수" content={<CustomLabel />} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
@@ -318,21 +288,16 @@
             const renderRevenueChart = (Recharts) => {
                 const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
                 const data = chartData.filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액);
-
-                const CustomBarLabel = ({ x, y, width, value }) => {
-                    if (!value || value === 0) return null;
-                    return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text>;
-                };
-
+                const CustomLabel = ({ x, y, width, value }) => value ? <text x={x+width/2} y={y-3} fill="#fff" textAnchor="middle" fontSize={10} fontWeight="bold">{formatKoreanCurrency(value)}</text> : null;
                 return (
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
+                        <BarChart data={data} margin={{ top: 15, right: 5, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11}} interval={0} />
-                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} tickFormatter={(val) => val >= 10000 ? `${val/10000}만` : val} />
-                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} formatter={(val) => val.toLocaleString() + '원'}/>
-                            <Bar dataKey="매출액" name="매출" fill={COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                <LabelList dataKey="매출액" content={<CustomBarLabel />} />
+                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 9}} interval={0} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 9}} tickFormatter={(val) => val>=10000 ? `${val/10000}만` : val} />
+                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '10px' }} formatter={(val) => val.toLocaleString()} />
+                            <Bar dataKey="매출액" fill={COLORS.revenue} radius={[3, 3, 0, 0]} maxBarSize={30}>
+                                <LabelList dataKey="매출액" content={<CustomLabel />} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
@@ -340,172 +305,123 @@
             };
 
             return (
-                <div className="h-full flex flex-col overflow-hidden">
+                <div className="h-full flex flex-col overflow-hidden text-slate-100 font-sans">
                     {/* Header */}
-                    <nav className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex-none">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-blue-600 p-2 rounded-lg">
-                                    <Icons.LayoutDashboard size={18} className="text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="font-bold text-lg leading-tight text-white">Sales Command Center</h1>
-                                    <p className="text-[10px] text-slate-400">실시간 통합 대시보드</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-white flex items-center gap-1 text-xs bg-slate-700 px-2 py-1 rounded">
-                                    <Icons.Settings size={14} /> 설정
-                                </button>
-                                <button onClick={fetchData} className={`text-slate-400 hover:text-white ${loading ? 'animate-spin' : ''}`}>
-                                    <Icons.RefreshCw size={18} />
-                                </button>
-                            </div>
+                    <div className="h-10 bg-slate-800 border-b border-slate-700 px-3 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Icons.LayoutDashboard size={16} className="text-blue-500" />
+                            <h1 className="text-sm font-bold text-white">Sales Command Center</h1>
                         </div>
-                        
-                        {/* Settings Overlay */}
-                        {showSettings && (
-                            <div className="absolute top-14 right-4 z-50 w-[500px] bg-slate-800 border border-slate-600 rounded-lg shadow-2xl p-5 overflow-y-auto max-h-[80vh]">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                                        <Icons.Database size={16} className="text-blue-400"/> 데이터 매핑 설정
-                                    </h3>
-                                    <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white text-xs">닫기</button>
-                                </div>
-                                <div className="mb-4">
-                                    <label className="block text-[10px] text-slate-400 mb-1">매출 기록 시트 (URL)</label>
-                                    <input type="text" value={tempSalesInput || salesGid} onChange={(e) => setTempSalesInput(e.target.value)} 
-                                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white" placeholder="https://..." />
-                                </div>
-                                <div className="overflow-x-auto pb-2 mb-4">
-                                    <div className="flex gap-2 min-w-max">
-                                        {salesPreviewRow.map((cell, idx) => (
-                                            <div key={idx} className="flex flex-col items-center">
-                                                <div className={`w-20 h-6 flex items-center justify-center text-[10px] rounded border ${Object.values(colMap).includes(idx) ? 'border-blue-500 bg-blue-900/30 text-blue-200' : 'border-slate-700 text-slate-500'} truncate`}>{cell || '-'}</div>
-                                                <span className="text-[9px] text-slate-500">Idx {idx}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 text-xs">
-                                    <div><label className="block text-slate-400 mb-1">담당자 (C열=2)</label><input type="number" value={colMap.manager} onChange={(e) => setColMap({...colMap, manager: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1"/></div>
-                                    <div><label className="block text-slate-400 mb-1">계약처 (D열=3)</label><input type="number" value={colMap.client} onChange={(e) => setColMap({...colMap, client: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1"/></div>
-                                    <div><label className="block text-slate-400 mb-1">건수 (E열=4)</label><input type="number" value={colMap.count} onChange={(e) => setColMap({...colMap, count: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1"/></div>
-                                    <div><label className="block text-slate-400 mb-1">매출액 (H열=7)</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1"/></div>
-                                </div>
-                                <div className="mt-4 text-right"><button onClick={handleApplySettings} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded">저장</button></div>
-                            </div>
-                        )}
-                    </nav>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-white"><Icons.Settings size={14} /></button>
+                            <button onClick={fetchData} className={`text-slate-400 hover:text-white ${loading ? 'animate-spin' : ''}`}><Icons.RefreshCw size={14} /></button>
+                        </div>
+                    </div>
 
-                    {/* Main Content */}
-                    <main className="flex-1 p-4 overflow-hidden">
-                        <div className="grid grid-cols-12 grid-rows-[3fr_1fr] gap-4 h-full">
+                    {/* Settings Panel */}
+                    {showSettings && (
+                        <div className="absolute top-10 right-2 z-50 w-80 bg-slate-800 border border-slate-600 rounded shadow-xl p-3 text-xs">
+                            <div className="flex justify-between mb-2"><span className="font-bold">데이터 매핑 설정</span><button onClick={() => setShowSettings(false)}>닫기</button></div>
+                            <div className="mb-2"><input type="text" value={tempSalesInput || salesGid} onChange={(e) => setTempSalesInput(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-1 py-1" placeholder="시트 URL..." /></div>
                             
-                            {/* 1. Daily Activities */}
-                            <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex flex-col gap-2">
-                                <div className="flex items-center gap-2 flex-none px-1">
-                                    <Icons.Briefcase size={16} className="text-blue-400" />
-                                    <h2 className="font-bold text-sm text-white">Daily Activities [일일 영업 활동]</h2>
+                            {/* 데이터 미리보기 (헤더 + 첫줄) */}
+                            <div className="mb-2 p-1 bg-slate-900 rounded overflow-x-auto whitespace-nowrap">
+                                <div className="flex gap-1 mb-1 border-b border-slate-700 pb-1">
+                                    {salesHeader.map((h, i) => <div key={i} className="w-16 text-center text-slate-400">{i}: {h}</div>)}
                                 </div>
-                                <div className="flex-1 overflow-y-auto pr-1 space-y-2 min-h-0">
-                                    {processedActivityGroups.map((group, idx) => (
-                                        <div key={group.type} className="h-32 flex flex-col bg-slate-900/30 rounded-lg p-2 flex-shrink-0">
-                                            <span className="text-[10px] text-slate-300 font-bold mb-1 flex items-center gap-1 truncate">
-                                                <Icons.Layers size={10} style={{ color: CHART_COLORS[idx % CHART_COLORS.length] }} /> 
-                                                {group.type} ({group.totalCount}건)
-                                            </span>
-                                            <div className="flex-1 min-h-0">
-                                                <SafeRecharts render={(r) => renderActivityChart(group, idx, r)} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {processedActivityGroups.length === 0 && <div className="text-center text-xs text-slate-500 pt-4">데이터 없음</div>}
+                                <div className="flex gap-1">
+                                    {salesFirstRow.map((c, i) => <div key={i} className="w-16 text-center text-white truncate">{c}</div>)}
                                 </div>
                             </div>
 
-                            {/* 2. Contract Count */}
-                            <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-col">
-                                <div className="flex items-center gap-2 mb-2 flex-none">
-                                    <Icons.FileText size={16} className="text-amber-400" />
-                                    <h2 className="font-bold text-sm text-white">Contract Count [계약 건수]</h2>
-                                </div>
-                                <div className="flex-1 min-h-0">
-                                    <SafeRecharts render={renderContractChart} />
-                                </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div><label>담당자 (idx)</label><input type="number" value={colMap.manager} onChange={(e) => setColMap({...colMap, manager: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-1"/></div>
+                                <div><label>계약처 (idx)</label><input type="number" value={colMap.client} onChange={(e) => setColMap({...colMap, client: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-1"/></div>
+                                <div><label>건수 (idx)</label><input type="number" value={colMap.count} onChange={(e) => setColMap({...colMap, count: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-1"/></div>
+                                <div><label>매출액 (idx)</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-1"/></div>
                             </div>
+                            <button onClick={handleApplySettings} className="mt-2 w-full bg-blue-600 py-1 rounded text-white font-bold">저장 및 불러오기</button>
+                        </div>
+                    )}
 
-                            {/* 3. Revenue Status */}
-                            <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-col">
-                                <div className="flex items-center gap-2 mb-2 flex-none">
-                                    <Icons.DollarSign size={16} className="text-emerald-400" />
-                                    <h2 className="font-bold text-sm text-white">Revenue Status [매출 현황]</h2>
-                                </div>
-                                <div className="flex-1 min-h-0">
-                                    <SafeRecharts render={renderRevenueChart} />
-                                </div>
-                            </div>
-
-                            {/* Bottom: Top 3 Lists */}
-                            <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
-                                {/* Sales Top 3 */}
-                                <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden flex flex-col">
-                                    <div className="px-4 py-2 bg-slate-700/30 border-b border-slate-700/50 flex items-center justify-between">
-                                        <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                                            <Icons.Crown size={14} className="text-yellow-400"/> Sales Top 3 [매출 상위 3인]
-                                        </h3>
+                    {/* Main Content (3:1 Ratio) */}
+                    <div className="flex-1 p-2 overflow-hidden grid grid-cols-12 grid-rows-[65%_35%] gap-2">
+                        
+                        {/* 1. Daily Activities (Scrollable) */}
+                        <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
+                            <div className="flex items-center gap-1 mb-1 text-blue-400 font-bold text-xs"><Icons.Briefcase size={12}/> Daily Activities [영업활동]</div>
+                            <div className="flex-1 overflow-y-auto pr-1 space-y-1">
+                                {processedActivityGroups.map((g, i) => (
+                                    <div key={g.type} className="h-28 bg-slate-900/30 rounded p-1 flex flex-col">
+                                        <span className="text-[10px] text-slate-300 flex items-center gap-1"><Icons.Layers size={10} style={{color:CHART_COLORS[i%8]}}/> {g.type} ({g.totalCount})</span>
+                                        <div className="flex-1"><SafeRecharts render={(r) => renderActivityChart(g, i, r)} /></div>
                                     </div>
-                                    <div className="flex-1 overflow-auto">
-                                        <table className="w-full text-left text-sm text-slate-400">
-                                            <thead className="bg-slate-700/50 text-slate-200 sticky top-0">
-                                                <tr><th className="px-6 py-2 w-16 text-center">순위</th><th className="px-6 py-2">담당자</th><th className="px-6 py-2 text-right">매출액</th></tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-700/50">
-                                                {topSales.length > 0 ? topSales.map((row, idx) => (
-                                                    <tr key={idx} className="hover:bg-slate-700/30">
-                                                        <td className="px-6 py-2 text-center text-yellow-400 font-bold">{idx + 1}</td>
-                                                        <td className="px-6 py-2 text-white">{row.담당자}</td>
-                                                        <td className="px-6 py-2 text-right font-mono text-emerald-400 font-bold">{formatKoreanCurrency(row.매출액)}</td>
-                                                    </tr>
-                                                )) : <tr><td colSpan="3" className="px-6 py-4 text-center text-slate-500">데이터 없음</td></tr>}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Contract Top 3 */}
-                                <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden flex flex-col">
-                                    <div className="px-4 py-2 bg-slate-700/30 border-b border-slate-700/50 flex items-center justify-between">
-                                        <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                                            <Icons.Award size={14} className="text-blue-400"/> Contract Details Top 3 [계약 상세 상위 3인]
-                                        </h3>
-                                    </div>
-                                    <div className="flex-1 overflow-auto">
-                                        <table className="w-full text-left text-sm text-slate-400">
-                                            <thead className="bg-slate-700/50 text-slate-200 sticky top-0">
-                                                <tr><th className="px-6 py-2 w-16 text-center">순위</th><th className="px-6 py-2">담당자</th><th className="px-6 py-2 text-right">건수</th></tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-700/50">
-                                                {topContracts.length > 0 ? topContracts.map((row, idx) => (
-                                                    <tr key={idx} className="hover:bg-slate-700/30">
-                                                        <td className="px-6 py-2 text-center text-blue-400 font-bold">{idx + 1}</td>
-                                                        <td className="px-6 py-2 text-white">{row.담당자}</td>
-                                                        <td className="px-6 py-2 text-right font-mono text-white">{row.계약건수}</td>
-                                                    </tr>
-                                                )) : <tr><td colSpan="3" className="px-6 py-4 text-center text-slate-500">데이터 없음</td></tr>}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                                ))}
                             </div>
                         </div>
-                    </main>
+
+                        {/* 2. Contract Count */}
+                        <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
+                            <div className="flex items-center gap-1 mb-1 text-amber-400 font-bold text-xs"><Icons.FileText size={12}/> Contract Count [계약건수]</div>
+                            <div className="flex-1"><SafeRecharts render={renderContractChart} /></div>
+                        </div>
+
+                        {/* 3. Revenue */}
+                        <div className="col-span-4 bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 flex flex-col min-h-0">
+                            <div className="flex items-center gap-1 mb-1 text-emerald-400 font-bold text-xs"><Icons.DollarSign size={12}/> Revenue Status [매출현황]</div>
+                            <div className="flex-1"><SafeRecharts render={renderRevenueChart} /></div>
+                        </div>
+
+                        {/* Bottom Row (Side by Side) */}
+                        <div className="col-span-12 grid grid-cols-2 gap-2 min-h-0">
+                            
+                            {/* Sales Top 3 */}
+                            <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg flex flex-col overflow-hidden">
+                                <div className="h-7 px-2 flex items-center gap-1 bg-slate-700/30 border-b border-slate-700/50 text-yellow-400 font-bold text-xs"><Icons.Crown size={12}/> Sales Top 3</div>
+                                <div className="flex-1 overflow-auto">
+                                    <table className="w-full text-[11px] text-left text-slate-400">
+                                        <thead className="bg-slate-700/50 text-slate-200 sticky top-0"><tr><th className="p-1 text-center w-10">순위</th><th className="p-1">담당자</th><th className="p-1 text-right">매출액</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-700/30">
+                                            {topSales.map((r, i) => (
+                                                <tr key={i} className="hover:bg-slate-700/30">
+                                                    <td className="p-1 text-center font-bold text-yellow-400">{i+1}</td>
+                                                    <td className="p-1 text-white">{r.담당자}</td>
+                                                    <td className="p-1 text-right font-mono text-emerald-400">{formatKoreanCurrency(r.매출액)}</td>
+                                                </tr>
+                                            ))}
+                                            {topSales.length === 0 && <tr><td colSpan="3" className="p-4 text-center">데이터 없음</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Contract Top 3 */}
+                            <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg flex flex-col overflow-hidden">
+                                <div className="h-7 px-2 flex items-center gap-1 bg-slate-700/30 border-b border-slate-700/50 text-blue-400 font-bold text-xs"><Icons.Award size={12}/> Contract Top 3</div>
+                                <div className="flex-1 overflow-auto">
+                                    <table className="w-full text-[11px] text-left text-slate-400">
+                                        <thead className="bg-slate-700/50 text-slate-200 sticky top-0"><tr><th className="p-1 text-center w-10">순위</th><th className="p-1">담당자</th><th className="p-1 text-right">건수</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-700/30">
+                                            {topContracts.map((r, i) => (
+                                                <tr key={i} className="hover:bg-slate-700/30">
+                                                    <td className="p-1 text-center font-bold text-blue-400">{i+1}</td>
+                                                    <td className="p-1 text-white">{r.담당자}</td>
+                                                    <td className="p-1 text-right font-mono text-white">{r.계약건수}</td>
+                                                </tr>
+                                            ))}
+                                            {topContracts.length === 0 && <tr><td colSpan="3" className="p-4 text-center">데이터 없음</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
                 </div>
             );
         }
 
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<SalesDashboard />);
     </script>
 </body>
