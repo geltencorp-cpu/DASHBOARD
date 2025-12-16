@@ -8,15 +8,15 @@
     <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 2. React & ReactDOM -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 2. React & ReactDOM (버전 명시) -->
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     
     <!-- 3. Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- 4. Recharts (차트 라이브러리) -->
-    <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+    <!-- 4. Recharts (안정적인 버전 명시) -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
 
     <style>
         html, body, #root {
@@ -33,13 +33,21 @@
         ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        /* 로딩 애니메이션 */
+        .shimmer {
+            animation: shimmer 2s infinite linear;
+            background: linear-gradient(to right, #1e293b 4%, #334155 25%, #1e293b 36%);
+            background-size: 1000px 100%;
+        }
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
     </style>
 </head>
 <body>
-    <div id="root" class="h-full flex items-center justify-center">
-        <!-- 로딩 전 기본 화면 -->
-        <div class="animate-pulse text-slate-400">대시보드 로딩 중...</div>
-    </div>
+    <div id="root" class="h-full"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
@@ -114,33 +122,35 @@
             return val.toLocaleString();
         };
 
-        const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1'];
+        const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'];
+
+        // --- Mock Data ---
         const MOCK_ACTIVITY = [{ person: '김철수', type: '아웃바운드' }, { person: '이영희', type: '메일 영업' }];
         const MOCK_SALES = [[null, '2025-01', '김철수', 'A고객사', '1', null, null, '₩50,000,000']];
 
+        // --- 차트 래퍼 컴포넌트 (Recharts 안전 로딩) ---
+        // Recharts가 로드되지 않았을 때 안전하게 빈 영역을 보여주거나 로딩중을 표시
+        const SafeRecharts = ({ render }) => {
+            const [lib, setLib] = useState(window.Recharts);
+
+            useEffect(() => {
+                if (lib) return;
+                const timer = setInterval(() => {
+                    if (window.Recharts) {
+                        setLib(window.Recharts);
+                        clearInterval(timer);
+                    }
+                }, 200);
+                return () => clearInterval(timer);
+            }, [lib]);
+
+            if (!lib) return <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs bg-slate-900/50 rounded animate-pulse">차트 로딩 중...</div>;
+            
+            return render(lib);
+        };
+
         // --- 메인 컴포넌트 ---
         function SalesDashboard() {
-            // Recharts 로딩 상태 관리
-            const [rechartsLoaded, setRechartsLoaded] = useState(false);
-            
-            useEffect(() => {
-                // Recharts가 로드될 때까지 확인
-                const interval = setInterval(() => {
-                    if (window.Recharts) {
-                        setRechartsLoaded(true);
-                        clearInterval(interval);
-                    }
-                }, 100);
-                return () => clearInterval(interval);
-            }, []);
-
-            if (!rechartsLoaded) {
-                return <div className="h-full flex items-center justify-center text-slate-400">차트 라이브러리 로딩 중...</div>;
-            }
-
-            // 안전하게 Recharts 컴포넌트 가져오기
-            const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = window.Recharts;
-            
             // 데이터 상태
             const [activityData, setActivityData] = useState([]);
             const [salesData, setSalesData] = useState([]);
@@ -193,7 +203,6 @@
                 setLoading(false);
             };
 
-            // 초기 로딩 및 주기적 갱신
             useEffect(() => {
                 fetchData();
                 const interval = setInterval(fetchData, 60000);
@@ -258,10 +267,76 @@
             const topSales = useMemo(() => [...processedSales].filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액).slice(0, 3), [processedSales]);
             const topContracts = useMemo(() => [...processedSales].filter(d => d.계약건수 > 0).sort((a, b) => b.계약건수 - a.계약건수).slice(0, 3), [processedSales]);
 
-            const CustomBarLabel = ({ x, y, width, value, type }) => {
-                if (!value || value === 0) return null;
-                const displayValue = type === 'revenue' ? formatKoreanCurrency(value) : value;
-                return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{displayValue}</text>;
+            // 차트 렌더러 함수들
+            const renderActivityChart = (group, idx, Recharts) => {
+                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
+                
+                const CustomBarLabel = ({ x, y, width, value }) => {
+                    if (!value || value === 0) return null;
+                    return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{value}</text>;
+                };
+
+                return (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={group.data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                            <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 10}} interval={0} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} width={20} />
+                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px' }} />
+                            <Bar dataKey="count" fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={30}>
+                                <LabelList dataKey="count" content={<CustomBarLabel />} />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                );
+            };
+
+            const renderContractChart = (Recharts) => {
+                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
+                const data = chartData.filter(d => d.계약건수 > 0);
+                
+                const CustomBarLabel = ({ x, y, width, value }) => {
+                    if (!value || value === 0) return null;
+                    return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{value}</text>;
+                };
+
+                return (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} margin={{ top: 15, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11}} interval={0} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} allowDecimals={false} />
+                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} />
+                            <Bar dataKey="계약건수" name="계약 수" fill={COLORS.contract} radius={[4, 4, 0, 0]} maxBarSize={50}>
+                                <LabelList dataKey="계약건수" content={<CustomBarLabel />} />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                );
+            };
+
+            const renderRevenueChart = (Recharts) => {
+                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
+                const data = chartData.filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액);
+
+                const CustomBarLabel = ({ x, y, width, value }) => {
+                    if (!value || value === 0) return null;
+                    return <text x={x + width / 2} y={y - 5} fill="#fff" textAnchor="middle" dy={-6} fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text>;
+                };
+
+                return (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11}} interval={0} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} tickFormatter={(val) => val >= 10000 ? `${val/10000}만` : val} />
+                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} formatter={(val) => val.toLocaleString() + '원'}/>
+                            <Bar dataKey="매출액" name="매출" fill={COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={50}>
+                                <LabelList dataKey="매출액" content={<CustomBarLabel />} />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                );
             };
 
             return (
@@ -341,17 +416,7 @@
                                                 {group.type} ({group.totalCount}건)
                                             </span>
                                             <div className="flex-1 min-h-0">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart data={group.data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                                        <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 10}} interval={0} />
-                                                        <YAxis stroke="#94a3b8" tick={{fontSize: 10}} width={20} />
-                                                        <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px' }} />
-                                                        <Bar dataKey="count" fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={30}>
-                                                            <LabelList dataKey="count" content={<CustomBarLabel />} />
-                                                        </Bar>
-                                                    </BarChart>
-                                                </ResponsiveContainer>
+                                                <SafeRecharts render={(r) => renderActivityChart(group, idx, r)} />
                                             </div>
                                         </div>
                                     ))}
@@ -366,17 +431,7 @@
                                     <h2 className="font-bold text-sm text-white">Contract Count [계약 건수]</h2>
                                 </div>
                                 <div className="flex-1 min-h-0">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={chartData.filter(d => d.계약건수 > 0)} margin={{ top: 15, right: 10, left: 0, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11}} interval={0} />
-                                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} allowDecimals={false} />
-                                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} />
-                                            <Bar dataKey="계약건수" name="계약 수" fill={COLORS.contract} radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                                <LabelList dataKey="계약건수" content={<CustomBarLabel />} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                    <SafeRecharts render={renderContractChart} />
                                 </div>
                             </div>
 
@@ -387,17 +442,7 @@
                                     <h2 className="font-bold text-sm text-white">Revenue Status [매출 현황]</h2>
                                 </div>
                                 <div className="flex-1 min-h-0">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={chartData.filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액)} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                            <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11}} interval={0} />
-                                            <YAxis stroke="#94a3b8" tick={{fontSize: 10}} tickFormatter={(val) => val >= 10000 ? `${val/10000}만` : val} />
-                                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} formatter={(val) => val.toLocaleString() + '원'}/>
-                                            <Bar dataKey="매출액" name="매출" fill={COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                                <LabelList dataKey="매출액" content={<CustomBarLabel type="revenue" />} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                    <SafeRecharts render={renderRevenueChart} />
                                 </div>
                             </div>
 
