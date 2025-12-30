@@ -96,6 +96,18 @@
             return arr;
         };
 
+        const extractGid = (input) => {
+            if (!input) return '';
+            try {
+                if (/^\d+$/.test(input)) return input;
+                const url = new URL(input);
+                return url.searchParams.get('gid') || input;
+            } catch (e) {
+                const match = input.match(/gid=(\d+)/);
+                return (match && match[1]) ? match[1] : input;
+            }
+        };
+
         const parseCurrency = (str) => {
             if (!str) return 0;
             if (typeof str !== 'string' && typeof str !== 'number') return 0;
@@ -144,7 +156,6 @@
             { person: '박민수', type: '미팅' }, { person: '최지수', type: '제안서 작성' },
             { person: '정다은', type: '콜드콜' }, { person: '강현우', type: '네트워킹' }
         ];
-        // 3번째 시트가 없을 경우 표시될 기본 목표 데이터
         const MOCK_TARGETS = [
             ['1월', '80000000'], ['2월', '90000000'], ['3월', '100000000'],
             ['4월', '110000000'], ['5월', '120000000'], ['6월', '130000000'],
@@ -297,6 +308,7 @@
         };
 
         function SalesDashboard() {
+            // 초기값 = MOCK 데이터 (화면 꺼짐 방지)
             const [activityData, setActivityData] = useState(MOCK_ACTIVITY);
             const [salesData, setSalesData] = useState(MOCK_SALES);
             const [targetData, setTargetData] = useState(MOCK_TARGETS);
@@ -313,11 +325,20 @@
             const [showRawInspector, setShowRawInspector] = useState(false);
 
             // 고정된 SHEET ID 및 GID
-            const SHEET_ID = '1W0OXOMzCvq6KlBwWpnnXQTgcOaC1gK4zftTEq5qmfns';
+            const SHEET1_ID = '1W0OXOMzCvq6KlBwWpnnXQTgcOaC1gK4zftTEq5qmfns';
             const [activityGid, setActivityGid] = useState('0');
             const [salesGid, setSalesGid] = useState('1883872851');
-            const [targetGid, setTargetGid] = useState('1856051626'); // 세번째 시트 GID
             
+            const SHEET2_ID = '1QK-HsCYzX3ke21LGfimauuUI8e6FPv2lEqTJWLJeaP0';
+            const [targetGid, setTargetGid] = useState('224024511'); 
+            
+            // Activity Column Map
+            const [actColMap, setActColMap] = useState({
+                name: 2, // C열
+                type: 3  // D열
+            });
+
+            // Sales Column Map
             const [colMap, setColMap] = useState({
                 date: 1,      // B열
                 manager: 2,   // C열
@@ -343,22 +364,23 @@
             const fetchData = useCallback(async () => {
                 setLoading(true);
                 // 중요: export format=csv 사용
-                const getExportUrl = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+                const getExportUrl1 = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET1_ID}/export?format=csv&gid=${gid}`;
+                const getExportUrl2 = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET2_ID}/export?format=csv&gid=${gid}`;
                 
                 let successCount = 0;
 
-                // 1. Activity
-                const actRows = await fetchAndParse(getExportUrl(activityGid));
+                // 1. Activity (Sheet 1)
+                const actRows = await fetchAndParse(getExportUrl1(activityGid));
                 if (actRows) {
-                    const parsed = actRows.slice(1).map(r => ({ person: r[2], type: r[3] })).filter(r => r.person);
+                    const parsed = actRows.slice(1).map(r => ({ person: r[actColMap.name], type: r[actColMap.type] })).filter(r => r.person);
                     if(parsed.length > 0) { 
                         setActivityData(parsed); 
                         successCount++;
                     }
                 }
 
-                // 2. Sales
-                const salesRows = await fetchAndParse(getExportUrl(salesGid));
+                // 2. Sales (Sheet 1)
+                const salesRows = await fetchAndParse(getExportUrl1(salesGid));
                 if (salesRows) {
                     setRawSales(salesRows.slice(0, 5));
                     if (salesRows.length > 1) {
@@ -367,12 +389,11 @@
                     }
                 }
                 
-                // 3. Targets (3번째 시트)
-                const targetRows = await fetchAndParse(getExportUrl(targetGid));
+                // 3. Targets (Sheet 2)
+                const targetRows = await fetchAndParse(getExportUrl2(targetGid));
                 if (targetRows) {
                     setRawTarget(targetRows.slice(0, 5));
-                    // 3번째 시트 데이터 처리 (A:월, B:목표)
-                    // 헤더 제외하고 데이터가 있다면
+                    // A열(0), B열(1) 사용
                     if (targetRows.length > 1) {
                         setTargetData(targetRows.slice(1));
                         successCount++;
@@ -383,7 +404,7 @@
                 else setIsLiveSource(false);
 
                 setLoading(false);
-            }, [activityGid, salesGid, targetGid]);
+            }, [activityGid, salesGid, targetGid, actColMap, colMap]);
 
             useEffect(() => {
                 fetchData();
@@ -448,7 +469,8 @@
                 }
                 
                 // 2. Target Data 매핑 (안전장치: 데이터 없으면 Mock 사용)
-                const sourceTargets = (targetData && targetData.length > 0) ? targetData : MOCK_TARGETS;
+                // 중요: 데이터가 유효한지 확인하고, 비어있으면 Mock 사용
+                const sourceTargets = (targetData && targetData.length > 1) ? targetData : MOCK_TARGETS;
                 
                 sourceTargets.forEach(row => {
                     if (!row || row.length < 2) return;
@@ -459,7 +481,7 @@
                     const targetVal = parseCurrency(row[1]); // B열: 목표금액
                     // 1월~12월 범위 내에 있는 데이터만 합산
                     if (dataMap.has(key)) {
-                        dataMap.get(key).target = targetVal; // 합산이 아니라 해당 월 목표로 설정
+                        dataMap.get(key).target = targetVal; 
                     }
                 });
 
@@ -560,15 +582,19 @@
                             <div className="flex-1 overflow-auto">
                                 {!showRawInspector ? (
                                     <>
-                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Activity GID</label><input type="text" value={activityGid} onChange={(e) => setActivityGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
-                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sales GID</label><input type="text" value={salesGid} onChange={(e) => setSalesGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
-                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Targets GID</label><input type="text" value={targetGid} onChange={(e) => setTargetGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sheet 1 (Activity/Sales) ID</label><input type="text" value={SHEET1_ID} readOnly className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-2 text-slate-400" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sheet 2 (Targets) ID</label><input type="text" value={SHEET2_ID} readOnly className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-2 text-slate-400" /></div>
+                                        
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Activity GID (Sheet 1)</label><input type="text" value={activityGid} onChange={(e) => setActivityGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sales GID (Sheet 1)</label><input type="text" value={salesGid} onChange={(e) => setSalesGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Targets GID (Sheet 2)</label><input type="text" value={targetGid} onChange={(e) => setTargetGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
                                         
                                         <div className="grid grid-cols-2 gap-3 mb-4 border-t border-slate-700 pt-3">
-                                            <div><label className="text-slate-400 text-xs block mb-1">날짜 열 (Index)</label><input type="number" value={colMap.date} onChange={(e) => setColMap({...colMap, date: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
-                                            <div><label className="text-slate-400 text-xs block mb-1">담당자 열 (Index)</label><input type="number" value={colMap.manager} onChange={(e) => setColMap({...colMap, manager: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
-                                            <div><label className="text-slate-400 text-xs block mb-1">계약처 열 (Index)</label><input type="number" value={colMap.client} onChange={(e) => setColMap({...colMap, client: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
-                                            <div><label className="text-slate-400 text-xs block mb-1">매출액 열 (Index)</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">Activity 이름 열</label><input type="number" value={actColMap.name} onChange={(e) => setActColMap({...actColMap, name: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">Activity 유형 열</label><input type="number" value={actColMap.type} onChange={(e) => setActColMap({...actColMap, type: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">Sales 날짜 열</label><input type="number" value={colMap.date} onChange={(e) => setColMap({...colMap, date: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">Sales 담당자 열</label><input type="number" value={colMap.manager} onChange={(e) => setColMap({...colMap, manager: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">Sales 매출액 열</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
                                         </div>
                                         <button onClick={handleApplySettings} className="w-full bg-blue-600 py-2 rounded text-white font-bold text-sm hover:bg-blue-500">설정 적용 및 데이터 다시 불러오기</button>
                                     </>
