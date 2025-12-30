@@ -579,17 +579,16 @@
                             <div className="flex items-center gap-2 mb-2 text-blue-400 font-bold text-base shrink-0 border-b border-slate-700/50 pb-2">
                                 <Icons.Briefcase size={16}/> Daily Activities
                             </div>
-                            <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+                            <div className="flex-1 flex flex-col gap-2 overflow-hidden">
                                 {processedActivityGroups.map((g, i) => (
-                                    // 높이 축소 (h-40 -> h-28), 폰트 축소
-                                    <div key={g.type} className="h-28 bg-slate-900/40 rounded-lg p-2 flex flex-col shrink-0 border border-slate-700/30">
-                                        <span className="text-xs font-bold text-slate-200 flex items-center gap-2 mb-1 px-1">
+                                    <div key={g.type} className="flex-1 min-h-0 bg-slate-900/40 rounded-lg p-2 flex flex-col border border-slate-700/30">
+                                        <span className="text-xs font-bold text-slate-200 flex items-center gap-2 mb-1 px-1 shrink-0">
                                             <Icons.Layers size={12} style={{color:CHART_COLORS[i%8]}}/> {g.type} <span className="text-slate-400 font-normal">({g.totalCount})</span>
                                         </span>
                                         <div className="flex-1 min-h-0"><SafeRecharts render={(r) => renderActivityChart(g, i, r)} /></div>
                                     </div>
                                 ))}
-                                {processedActivityGroups.length === 0 && <div className="text-center text-sm text-slate-500 py-10">데이터 없음</div>}
+                                {processedActivityGroups.length === 0 && <div className="flex-1 flex items-center justify-center text-sm text-slate-500">데이터 없음</div>}
                             </div>
                         </div>
 
