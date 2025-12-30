@@ -47,20 +47,15 @@
     </style>
 </head>
 <body>
-    <div id="root" class="h-screen w-screen bg-slate-900 flex items-center justify-center text-slate-500">
-        로딩 중... (잠시만 기다려주세요)
-    </div>
+    <div id="root" class="h-screen w-screen bg-slate-900"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- 아이콘 컴포넌트 ---
+        // --- 아이콘 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
-            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                {children}
-            </svg>
+            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
-
         const Icons = {
             LayoutDashboard: (p) => <Icon {...p}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></Icon>,
             RefreshCw: (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
@@ -131,6 +126,7 @@
             return val.toLocaleString();
         };
 
+        // --- 날짜 정규화 함수 ---
         const normalizeMonth = (str) => {
             if (!str) return '';
             let s = String(str).trim();
@@ -160,7 +156,7 @@
         ];
         const COLORS = { revenue: '#10b981', target: '#f97316' }; 
 
-        // --- MOCK DATA ---
+        // --- MOCK DATA (기본값) ---
         const MOCK_SALES = [
             [null, '2025-01', '김철수', 'A고객사', '1', null, null, '50000000'],
             [null, '2025-02', '이영희', 'B고객사', '1', null, null, '70000000'],
@@ -204,6 +200,7 @@
             const [localSales, setLocalSales] = useState([...salesData]);
             const [localTargets, setLocalTargets] = useState([...targetData]);
 
+            // Handlers
             const updateActivity = (idx, field, val) => {
                 const newData = [...localActivity];
                 newData[idx] = { ...newData[idx], [field]: val };
@@ -429,7 +426,7 @@
                 else setIsLiveSource(false);
 
                 setLoading(false);
-            }, [activityGid, salesGid, actColMap, colMap, isManual]);
+            }, [activityGid, salesGid, targetGid, actColMap, colMap, isManual]);
 
             useEffect(() => {
                 fetchData();
@@ -583,7 +580,7 @@
 
             const renderMonthlyChart = () => (
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                    <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }} barGap={-15}>
                         <defs>
                             {/* Target Bar Gradient: Green to Blue */}
                             <linearGradient id="targetGradient" x1="0" y1="0" x2="0" y2="1">
@@ -601,7 +598,9 @@
                         <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill:'#ffffff'}} tickFormatter={v=>v>=100000000?`${v/100000000}억`:`${v/10000}만`} />
                         <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
                         <Legend wrapperStyle={{fontSize:'11px', paddingTop:'5px'}}/>
-                        <Bar name="목표" dataKey="target" fill="url(#targetGradient)" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                        <Bar name="목표" dataKey="target" fill="url(#targetGradient)" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                            <LabelList dataKey="target" content={({x,y,width,value})=>value>0?<text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text>:null} />
+                        </Bar>
                         <Bar name="매출" dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={50}>
                             {processedMonthly.map((e, i) => {
                                 let c = "#3b82f6"; 
@@ -713,7 +712,7 @@
                             <div className="h-[30%] bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col min-h-0 shadow-lg">
                                 <div className="flex items-center justify-between mb-1 px-1">
                                     <div className="flex items-center gap-2 text-orange-400 font-bold text-base"><Icons.Target size={16} className="text-orange-400"/> Monthly Target Status <span className="text-slate-400 text-sm font-normal ml-1">(현재: {formatKoreanCurrency(totalRevenue)} / 목표: {formatKoreanCurrency(totalTarget)})</span></div>
-                                    <span className="text-xs text-slate-400">단위: 원 (목표)</span>
+                                    <span className="text-xs text-slate-400">단위: 원 (목표 대비 실적)</span>
                                 </div>
                                 <div className="flex-1">{renderMonthlyChart()}</div>
                             </div>
