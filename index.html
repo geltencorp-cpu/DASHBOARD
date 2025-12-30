@@ -27,11 +27,16 @@
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: hidden; /* TV 화면용: 스크롤 숨김 */
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #0f172a; /* slate-900 */
             color: #ffffff;
         }
+        /* 사이즈가 너무 작아질 경우를 대비한 최소 사이즈 강제 (에러 방지용) */
+        @media (max-width: 1024px) or (max-height: 600px) {
+            #root { overflow: auto; } /* 작아지면 스크롤 허용 */
+        }
+
         ::-webkit-scrollbar { display: none; }
         * { -ms-overflow-style: none; scrollbar-width: none; }
         .cell-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -50,6 +55,14 @@
     <div id="root" class="h-screen w-screen bg-slate-900"></div>
 
     <script type="text/babel">
+        // ResizeObserver Loop Error 억제 (기능상 문제 없는 에러)
+        const resizeObserverLoopErr = /Loop limit exceeded/;
+        window.addEventListener('error', (e) => {
+            if (resizeObserverLoopErr.test(e.message)) {
+                e.stopImmediatePropagation();
+            }
+        });
+
         const { useState, useEffect, useMemo, useCallback } = React;
 
         // --- 아이콘 ---
@@ -174,24 +187,6 @@
             ['7월', '200000000'], ['8월', '100000000'], ['9월', '200000000'],
             ['10월', '200000000'], ['11월', '200000000'], ['12월', '100000000']
         ];
-
-        // Recharts Safe Wrapper
-        const SafeRecharts = ({ render }) => {
-            const [lib, setLib] = useState(window.Recharts);
-            const [isTimeout, setIsTimeout] = useState(false);
-            useEffect(() => {
-                if (lib) return;
-                const start = Date.now();
-                const timer = setInterval(() => {
-                    if (window.Recharts) { setLib(window.Recharts); clearInterval(timer); }
-                    else if (Date.now() - start > 5000) { setIsTimeout(true); clearInterval(timer); }
-                }, 100);
-                return () => clearInterval(timer);
-            }, [lib]);
-            if (isTimeout) return <div className="flex h-full items-center justify-center text-xs text-red-400">차트 로딩 실패</div>;
-            if (!lib) return <div className="flex h-full items-center justify-center text-xs text-slate-500 animate-pulse">차트 로딩...</div>;
-            return render(lib);
-        };
 
         // --- Data Editor Component ---
         const DataEditor = ({ activityData, salesData, targetData, colMap, onSave, onClose }) => {
@@ -696,11 +691,11 @@
                             <div className="h-[25%] grid grid-cols-2 gap-3">
                                 <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col min-h-0 shadow-lg">
                                     <div className="flex items-center gap-2 mb-1 text-emerald-400 font-bold text-base"><Icons.DollarSign size={16}/> Revenue Status <span className="text-white ml-1 text-sm">[총 매출 {formatKoreanCurrency(totalRevenue)}원]</span></div>
-                                    <div className="flex-1">{renderRevenueChart()}</div>
+                                    <div className="flex-1 min-h-[200px]">{renderRevenueChart()}</div>
                                 </div>
                                 <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl flex flex-col overflow-hidden shadow-lg">
                                     <div className="h-8 px-3 flex items-center gap-2 bg-slate-700/30 border-b border-slate-700/50 text-yellow-400 font-bold text-base"><Icons.Crown size={16}/> Sales Top 3</div>
-                                    <div className="flex-1 overflow-auto p-1">
+                                    <div className="flex-1 overflow-auto p-1 min-h-[200px]">
                                         <table className="w-full text-xs text-left text-slate-300">
                                             <thead className="bg-slate-700/50 text-slate-100 sticky top-0 font-bold"><tr><th className="p-2 text-center w-12">순위</th><th className="p-2">담당자</th><th className="p-2 text-right">매출액</th></tr></thead>
                                             <tbody className="divide-y divide-slate-700/30 text-sm">
@@ -717,7 +712,7 @@
                                     <div className="flex items-center gap-2 text-orange-400 font-bold text-base"><Icons.Target size={16} className="text-orange-400"/> Monthly Target Status <span className="text-slate-400 text-sm font-normal ml-1">(현재: {formatKoreanCurrency(totalRevenue)} / 목표: {formatKoreanCurrency(totalTarget)})</span></div>
                                     <span className="text-xs text-slate-400">단위: 원 (목표 대비 실적)</span>
                                 </div>
-                                <div className="flex-1">{renderMonthlyChart()}</div>
+                                <div className="flex-1 min-h-[200px]">{renderMonthlyChart()}</div>
                             </div>
 
                             <div className="flex-1 bg-slate-800/40 border border-slate-700/50 rounded-xl flex flex-col overflow-hidden shadow-lg">
@@ -725,9 +720,9 @@
                                     <div className="flex items-center gap-2 text-indigo-400 font-bold text-base"><Icons.Building size={18}/> 나라장터 입찰 및 지원사업</div>
                                     <button className="text-xs bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded transition-colors font-bold">새로고침</button>
                                 </div>
-                                <div className="flex-1 p-4 overflow-auto">
+                                <div className="flex-1 p-4 overflow-auto min-h-[200px]">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full"><h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">입찰 공고 (최근 5건)</h3>
+                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full"><h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">나라장터(물품/용역)</h3>
                                             <ul className="space-y-3 text-sm text-slate-300 flex-1 overflow-auto">
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">2025년도 정보시스템 유지관리 사업</span><span className="text-amber-500 font-bold ml-3 shrink-0">D-2</span></li>
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">공공데이터 개방 및 품질진단 용역</span><span className="text-slate-400 font-bold ml-3 shrink-0">D-5</span></li>
@@ -736,7 +731,7 @@
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors"><span className="truncate flex-1 font-medium">차세대 지방세정보시스템 유지관리</span><span className="text-slate-400 font-bold ml-3 shrink-0">D-12</span></li>
                                             </ul>
                                         </div>
-                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full"><h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">지원사업 공고 (추천)</h3>
+                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full"><h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">지원사업</h3>
                                             <ul className="space-y-3 text-sm text-slate-300 flex-1 overflow-auto">
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">AI 바우처 지원사업 수요기업 모집</span><span className="text-emerald-500 font-bold ml-3 shrink-0">접수중</span></li>
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">데이터 바우처 지원사업 하반기</span><span className="text-red-400 font-bold ml-3 shrink-0">마감임박</span></li>
