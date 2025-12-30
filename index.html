@@ -390,6 +390,8 @@
                 return null;
             };
 
+            const getGvizUrl = (sheetId, gid) => `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+
             const fetchData = useCallback(async () => {
                 // 수기 모드면 패치 안함 (사용자 입력 보존)
                 if (isManual) return;
@@ -454,8 +456,6 @@
                 }
             };
             
-            const getGvizUrl = (sheetId, gid) => `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
-
             // --- 데이터 가공 ---
             // 안전장치: 데이터가 비어있으면 Mock 데이터 사용 (화면 꺼짐 방지)
             const safeActivity = useMemo(() => (activityData && activityData.length > 0) ? activityData : MOCK_ACTIVITY, [activityData]);
@@ -561,7 +561,7 @@
                 }
                 return (
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.filter(d=>d.매출액>0).sort((a,b)=>b.매출액-a.매출액)} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                        <BarChart data={chartData.filter(d=>d.매출액>0).sort((a,b)=>b.매출액-a.매출액)} margin={{ top: 30, right: 10, left: 10, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="revenueStatusGrad" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#f97316" stopOpacity={0.9}/> {/* Orange Top */}
@@ -572,7 +572,9 @@
                             <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11, fontWeight: 'bold', fill: '#ffffff'}} interval={0} />
                             <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} tickFormatter={v=>v>=10000?`${v/10000}만`:v} />
                             <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
-                            <Bar dataKey="매출액" fill="url(#revenueStatusGrad)" radius={[4, 4, 0, 0]} maxBarSize={80}><LabelList dataKey="매출액" content={({x,y,width,value})=>value?<text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text>:null} /></Bar>
+                            <Bar dataKey="매출액" fill="url(#revenueStatusGrad)" radius={[4, 4, 0, 0]} maxBarSize={80}>
+                                <LabelList dataKey="매출액" position="top" fill="#ffffff" fontSize={12} fontWeight="bold" formatter={(value) => formatKoreanCurrency(value)} />
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 );
@@ -580,7 +582,7 @@
 
             const renderMonthlyChart = () => (
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }} barGap={-15}>
+                    <BarChart data={processedMonthly} margin={{ top: 30, right: 10, left: 10, bottom: 5 }} barGap={-15}>
                         <defs>
                             {/* Target Bar Gradient: Green to Blue */}
                             <linearGradient id="targetGradient" x1="0" y1="0" x2="0" y2="1">
@@ -599,9 +601,10 @@
                         <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
                         <Legend wrapperStyle={{fontSize:'11px', paddingTop:'5px'}}/>
                         <Bar name="목표" dataKey="target" fill="url(#targetGradient)" radius={[4, 4, 0, 0]} maxBarSize={50}>
-                            <LabelList dataKey="target" content={({x,y,width,value})=>value>0?<text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text>:null} />
+                            <LabelList dataKey="target" position="top" fill="#ffffff" fontSize={11} fontWeight="bold" formatter={(value) => value > 0 ? formatKoreanCurrency(value) : ''} />
                         </Bar>
                         <Bar name="매출" dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                             <LabelList dataKey="revenue" position="top" fill="#ffffff" fontSize={11} fontWeight="bold" formatter={(value) => value > 0 ? formatKoreanCurrency(value) : ''} />
                             {processedMonthly.map((e, i) => {
                                 let c = "#3b82f6"; 
                                 if (e.rate <= 30) c = "#ef4444"; 
