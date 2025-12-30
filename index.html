@@ -30,15 +30,13 @@
             overflow: hidden;
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #0f172a; /* slate-900 */
-            color: #ffffff; /* 기본 글씨 흰색 */
+            color: #ffffff;
         }
         ::-webkit-scrollbar { display: none; }
         * { -ms-overflow-style: none; scrollbar-width: none; }
         .cell-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .fade-in { animation: fadeIn 0.5s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .slide-in { animation: slideIn 0.3s ease-out forwards; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .status-dot.live { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
@@ -47,15 +45,20 @@
     </style>
 </head>
 <body>
-    <div id="root" class="h-screen w-screen bg-slate-900"></div>
+    <div id="root" class="h-screen w-screen bg-slate-900 flex items-center justify-center text-slate-500">
+        로딩 중... (잠시만 기다려주세요)
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- 아이콘 ---
+        // --- 아이콘 컴포넌트 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
-            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
+            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
         );
+
         const Icons = {
             LayoutDashboard: (p) => <Icon {...p}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></Icon>,
             RefreshCw: (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
@@ -73,7 +76,8 @@
             Building: (p) => <Icon {...p}><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></Icon>,
             Eye: (p) => <Icon {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></Icon>,
             Check: (p) => <Icon {...p}><polyline points="20 6 9 17 4 12"/></Icon>,
-            AlertTriangle: (p) => <Icon {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></Icon>
+            AlertTriangle: (p) => <Icon {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></Icon>,
+            Lock: (p) => <Icon {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></Icon>
         };
 
         // --- 유틸리티 ---
@@ -96,18 +100,6 @@
             return arr;
         };
 
-        const extractGid = (input) => {
-            if (!input) return '';
-            try {
-                if (/^\d+$/.test(input)) return input;
-                const url = new URL(input);
-                return url.searchParams.get('gid') || input;
-            } catch (e) {
-                const match = input.match(/gid=(\d+)/);
-                return (match && match[1]) ? match[1] : input;
-            }
-        };
-
         const parseCurrency = (str) => {
             if (!str) return 0;
             if (typeof str !== 'string' && typeof str !== 'number') return 0;
@@ -125,7 +117,6 @@
             return val.toLocaleString();
         };
 
-        // --- 날짜 정규화 함수 ---
         const normalizeMonth = (str) => {
             if (!str) return '';
             let s = String(str).trim();
@@ -143,9 +134,10 @@
         };
 
         const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'];
-        const COLORS = { revenue: '#10b981', target: '#64748b' };
+        // COLORS.target will be used for text, the gradient will be handled in render
+        const COLORS = { revenue: '#10b981', target: '#f97316' }; 
 
-        // --- MOCK DATA ---
+        // --- MOCK DATA (기본값) ---
         const MOCK_SALES = [
             [null, '2025-01', '김철수', 'A고객사', '1', null, null, '50000000'],
             [null, '2025-02', '이영희', 'B고객사', '1', null, null, '70000000'],
@@ -184,11 +176,12 @@
 
         // --- Data Editor Component ---
         const DataEditor = ({ activityData, salesData, targetData, colMap, onSave, onClose }) => {
-            const [activeTab, setActiveTab] = useState('activity');
+            const [activeTab, setActiveTab] = useState('sales');
             const [localActivity, setLocalActivity] = useState([...activityData]);
             const [localSales, setLocalSales] = useState([...salesData]);
             const [localTargets, setLocalTargets] = useState([...targetData]);
 
+            // Handlers
             const updateActivity = (idx, field, val) => {
                 const newData = [...localActivity];
                 newData[idx] = { ...newData[idx], [field]: val };
@@ -239,31 +232,15 @@
                             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><Icons.X /></button>
                         </div>
                         <div className="flex border-b border-slate-700 bg-slate-900/30">
-                            <button onClick={() => setActiveTab('activity')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'activity' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Briefcase size={14}/> Activity</button>
                             <button onClick={() => setActiveTab('sales')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'sales' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.DollarSign size={14}/> Sales</button>
+                            <button onClick={() => setActiveTab('activity')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'activity' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Briefcase size={14}/> Activity</button>
                             <button onClick={() => setActiveTab('target')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'target' ? 'text-slate-200 border-b-2 border-slate-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Target size={14}/> Target</button>
                         </div>
                         <div className="flex-1 overflow-auto p-4 bg-slate-800 text-white">
-                            {activeTab === 'activity' && (
-                                <div>
-                                    <table className="w-full text-sm text-left text-slate-200">
-                                        <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2">담당자</th><th className="px-3 py-2">활동 유형</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
-                                        <tbody className="divide-y divide-slate-700">
-                                            {localActivity.map((item, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-700/50">
-                                                    <td className="p-1"><input type="text" value={item.person || ''} onChange={(e) => updateActivity(idx, 'person', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" /></td>
-                                                    <td className="p-1"><input type="text" value={item.type || ''} onChange={(e) => updateActivity(idx, 'type', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" /></td>
-                                                    <td className="p-1 text-center"><button onClick={() => removeActivity(idx)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash size={14}/></button></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <button onClick={addActivity} className="mt-3 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-bold px-2 py-1 border border-blue-900 bg-blue-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button>
-                                </div>
-                            )}
+                             {/* ... Editor Content ... */}
                             {activeTab === 'sales' && (
                                 <div>
-                                    <table className="w-full text-sm text-left text-slate-200">
+                                    <table className="w-full text-sm text-left text-slate-400">
                                         <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2 w-24">날짜</th><th className="px-3 py-2">담당자</th><th className="px-3 py-2">고객사</th><th className="px-3 py-2 w-32">매출액</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
                                         <tbody className="divide-y divide-slate-700">
                                             {localSales.map((row, idx) => (
@@ -280,10 +257,27 @@
                                     <button onClick={addSales} className="mt-3 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-bold px-2 py-1 border border-emerald-900 bg-emerald-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button>
                                 </div>
                             )}
+                            {activeTab === 'activity' && (
+                                <div>
+                                    <table className="w-full text-sm text-left text-slate-400">
+                                        <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2">담당자</th><th className="px-3 py-2">활동 유형</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                            {localActivity.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-700/50">
+                                                    <td className="p-1"><input type="text" value={item.person || ''} onChange={(e) => updateActivity(idx, 'person', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" /></td>
+                                                    <td className="p-1"><input type="text" value={item.type || ''} onChange={(e) => updateActivity(idx, 'type', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" /></td>
+                                                    <td className="p-1 text-center"><button onClick={() => removeActivity(idx)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash size={14}/></button></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    <button onClick={addActivity} className="mt-3 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-bold px-2 py-1 border border-blue-900 bg-blue-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button>
+                                </div>
+                            )}
                             {activeTab === 'target' && (
                                 <div>
-                                    <div className="mb-2 text-xs text-slate-400">* 날짜는 'YYYY-MM' 또는 'M월' 형식으로 입력하세요. (예: 2025-01, 1월)</div>
-                                    <table className="w-full text-sm text-left text-slate-200">
+                                    <div className="mb-2 text-xs text-slate-500">* 날짜는 'YYYY-MM' 또는 'M월' 형식으로 입력하세요. (예: 2025-01, 1월)</div>
+                                    <table className="w-full text-sm text-left text-slate-400">
                                         <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2 w-32">월 (Month)</th><th className="px-3 py-2">목표 금액</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
                                         <tbody className="divide-y divide-slate-700">
                                             {localTargets.map((row, idx) => (
@@ -342,14 +336,14 @@
 
             // Sales Column Map
             const [colMap, setColMap] = useState({
-                date: 1,      // B열
-                manager: 2,   // C열
-                client: 3,    // D열
-                count: 4,     // E열
-                revenue: 7    // H열
+                date: 0,      // A열 (Sales)
+                manager: 2,   // C열 (Sales)
+                client: 3,    // D열 (Sales)
+                count: 4,     // E열 (Sales)
+                revenue: 7    // H열 (Sales)
             });
 
-            // URL 변환 로직 (pubhtml -> pub?output=csv & gid=...)
+            // URL 변환 로직 (pubhtml -> gviz URL)
             const getCsvUrl = (url, gid) => {
                 if (!url) return "";
                 let base = url;
@@ -378,7 +372,7 @@
             };
 
             const fetchData = useCallback(async () => {
-                // 수기 모드이면 자동 패치 중단
+                // 수기 모드면 패치 안함 (사용자 입력 보존)
                 if (isManual) return;
 
                 setLoading(true);
@@ -428,17 +422,25 @@
             const handleEditorSave = (newActivity, newSales, newTargets) => {
                 setActivityData(newActivity);
                 setSalesData(newSales);
-                setTargetData(newTargets); // 수기 입력된 목표값 저장
-                setShowEditor(false);
-                setIsLiveSource(true);
+                setTargetData(newTargets);
+                
                 setIsManual(true); // 수동 모드 활성화 (자동 업데이트 방지)
+                setShowEditor(false);
             };
+            
+            const resetToAuto = () => {
+                if(confirm("수기 입력을 취소하고 구글 시트 데이터로 되돌리시겠습니까?")) {
+                    setIsManual(false);
+                    fetchData(); // 즉시 패치 시도
+                }
+            };
+            
+            const getGvizUrl = (sheetId, gid) => `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
 
             // --- 데이터 가공 ---
-            // 안전장치
+            // 안전장치: 데이터가 비어있으면 Mock 데이터 사용 (화면 꺼짐 방지)
             const safeActivity = useMemo(() => (activityData && activityData.length > 0) ? activityData : MOCK_ACTIVITY, [activityData]);
             const safeSales = useMemo(() => (salesData && salesData.length > 0) ? salesData : MOCK_SALES, [salesData]);
-            // Target은 수기 데이터 (없으면 MOCK)
             const safeTargets = useMemo(() => (targetData && targetData.length > 0) ? targetData : MOCK_TARGETS, [targetData]);
 
             const processedActivityGroups = useMemo(() => {
@@ -508,90 +510,76 @@
             const chartData = useMemo(() => processedSales.filter(d => d.매출액 > 0), [processedSales]);
             const topSales = useMemo(() => [...processedSales].filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액).slice(0, 3), [processedSales]);
             const totalRevenue = useMemo(() => processedSales.reduce((acc, curr) => acc + curr.매출액, 0), [processedSales]);
-            // Total Target for Header
             const totalTarget = useMemo(() => processedMonthly.reduce((acc, curr) => acc + curr.target, 0), [processedMonthly]);
 
             // --- 렌더러 ---
-            const renderActivityChart = (group, idx, Recharts) => {
-                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
-                const CustomLabel = ({ x, y, width, value }) => value ? <text x={x+width/2} y={y-3} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{value}</text> : null;
-                return (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={group.data} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 11, fontWeight: 'bold', fill: '#ffffff'}} interval={0} />
-                            <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} />
-                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} />
-                            <Bar dataKey="count" fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={30}><LabelList dataKey="count" content={<CustomLabel />} /></Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                );
-            };
+            const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend, Cell, Defs, LinearGradient, Stop } = window.Recharts;
+            
+            const renderActivityChart = (group, idx) => (
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={group.data} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" tick={{fontSize: 11, fontWeight: 'bold', fill: '#ffffff'}} interval={0} />
+                        <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} />
+                        <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} />
+                        <Bar dataKey="count" fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={30}><LabelList dataKey="count" content={({x,y,width,value})=>value?<text x={x+width/2} y={y-3} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{value}</text>:null} /></Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            );
 
-            const renderRevenueChart = (Recharts) => {
-                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
-                const data = chartData.filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액);
-                const CustomLabel = ({ x, y, width, value }) => value ? <text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text> : null;
+            const renderRevenueChart = () => {
+                // 데이터가 없을 때 안전장치
+                if (!chartData || chartData.length === 0) {
+                    return <div className="flex h-full items-center justify-center text-xs text-slate-500">데이터 없음 (컬럼 설정 확인)</div>;
+                }
                 return (
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                        <BarChart data={chartData.filter(d=>d.매출액>0).sort((a,b)=>b.매출액-a.매출액)} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                             <XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11, fontWeight: 'bold', fill: '#ffffff'}} interval={0} />
-                            <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} tickFormatter={(val) => val>=10000 ? `${val/10000}만` : val} />
+                            <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} tickFormatter={v=>v>=10000?`${v/10000}만`:v} />
                             <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
-                            <Bar dataKey="매출액" fill={COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={40}><LabelList dataKey="매출액" content={<CustomLabel />} /></Bar>
+                            <Bar dataKey="매출액" fill={COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={40}><LabelList dataKey="매출액" content={({x,y,width,value})=>value?<text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text>:null} /></Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 );
             };
 
-            const renderMonthlyChart = (Recharts) => {
-                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell, Defs, LinearGradient, Stop, Legend } = Recharts;
-                const CustomBarLabel = ({ x, y, width, value }) => value > 0 ? <text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text> : null;
-                
-                const getBarColor = (rate) => {
-                    if (rate <= 30) return "#ef4444"; 
-                    if (rate <= 70) return "#f97316"; 
-                    if (rate <= 100) return "#3b82f6"; 
-                    return "url(#colorGradient)"; 
-                };
-
-                return (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
-                             <defs>
-                                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.9}/>
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.9}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            <XAxis dataKey="month" stroke="#94a3b8" tick={{fontSize: 11, fill: '#ffffff'}} tickFormatter={(val) => {
-                                const parts = val.split('-');
-                                return parts.length === 2 ? `${parseInt(parts[1])}월` : val;
-                            }} />
-                            <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} tickFormatter={(val) => val>=100000000 ? `${val/100000000}억` : `${val/10000}만`} />
-                            <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
-                            <Legend wrapperStyle={{fontSize: '11px', paddingTop: '5px'}} />
-                            
-                            <Bar name="목표" dataKey="target" fill={COLORS.target} radius={[4, 4, 0, 0]} maxBarSize={20} />
-                            <Bar name="매출" dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={20}>
-                                {processedMonthly.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={getBarColor(entry.rate)} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                );
-            };
+            const renderMonthlyChart = () => (
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                        <defs>
+                            <linearGradient id="targetGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#22c55e" stopOpacity={1}/>
+                                <stop offset="100%" stopColor="#3b82f6" stopOpacity={1}/>
+                            </linearGradient>
+                            <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.9}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis dataKey="month" stroke="#94a3b8" tick={{fontSize: 11, fill:'#ffffff'}} tickFormatter={v=>`${parseInt(v.split('-')[1])}월`} />
+                        <YAxis stroke="#94a3b8" tick={{fontSize: 10, fill:'#ffffff'}} tickFormatter={v=>v>=100000000?`${v/100000000}억`:`${v/10000}만`} />
+                        <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
+                        <Legend wrapperStyle={{fontSize:'11px', paddingTop:'5px'}}/>
+                        <Bar name="목표" dataKey="target" fill="url(#targetGradient)" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                        <Bar name="매출" dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={20}>
+                            {processedMonthly.map((e, i) => {
+                                let c = "#3b82f6"; 
+                                if (e.rate <= 30) c = "#ef4444"; 
+                                else if (e.rate <= 70) c = "#f97316"; 
+                                else if (e.rate > 100) c = "url(#colorGradient)";
+                                return <Cell key={`cell-${i}`} fill={c} />;
+                            })}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            );
 
             return (
                 <div className="h-full w-full flex flex-col overflow-hidden text-slate-100 font-sans bg-slate-900 fade-in">
                     <div className="h-12 bg-slate-800 border-b border-slate-700 px-4 flex items-center justify-between shrink-0">
-                        <div className="flex items-center gap-3">
-                            <Icons.LayoutDashboard size={20} className="text-blue-500" />
-                            <h1 className="text-lg font-bold text-white tracking-wide">Sales Command Center</h1>
-                        </div>
+                        <div className="flex items-center gap-3"><Icons.LayoutDashboard size={20} className="text-blue-500" /><h1 className="text-lg font-bold text-white tracking-wide">Sales Command Center</h1></div>
                         <div className="flex items-center gap-3">
                             <span className="text-xs text-slate-400 mr-2 hidden sm:block font-medium">자동 업데이트: 매일 18:10</span>
                             {/* Status Indicator */}
@@ -600,9 +588,10 @@
                                 {isManual ? '수기 모드 (잠금)' : (isLiveSource ? 'Live Data' : 'Check Source')}
                             </div>
                             <div className="h-5 w-[1px] bg-slate-600 mx-1"></div>
-                            <button onClick={() => setShowEditor(true)} className="flex items-center gap-1 text-slate-300 hover:text-white px-2 py-1 hover:bg-slate-700 rounded transition-colors" title="데이터 수정"><Icons.Edit size={16} /> <span className="text-xs font-bold">수정</span></button>
-                            <button onClick={() => setShowSettings(!showSettings)} className="text-slate-300 hover:text-white p-1 hover:bg-slate-700 rounded"><Icons.Settings size={18} /></button>
-                            <button onClick={() => { setIsManual(false); fetchData(); }} className={`text-slate-300 hover:text-white p-1 hover:bg-slate-700 rounded ${loading ? 'animate-spin' : ''}`}><Icons.RefreshCw size={18} /></button>
+                            {isManual && <button onClick={resetToAuto} className="text-xs text-slate-400 hover:text-white underline mr-2">수동 해제</button>}
+                            <button onClick={()=>setShowEditor(true)} className="flex items-center gap-1 text-slate-300 hover:text-white px-2 py-1 hover:bg-slate-700 rounded transition-colors" title="데이터 수정"><Icons.Edit size={16} /><span className="text-xs font-bold">수정</span></button>
+                            <button onClick={()=>setShowSettings(!showSettings)} className="text-slate-300 hover:text-white p-1 hover:bg-slate-700 rounded"><Icons.Settings size={18} /></button>
+                            <button onClick={fetchData} className={`text-slate-300 hover:text-white p-1 hover:bg-slate-700 rounded ${loading?'animate-spin':''}`}><Icons.RefreshCw size={18} /></button>
                         </div>
                     </div>
 
@@ -632,7 +621,6 @@
                                             <div><label className="text-slate-400 text-xs block mb-1">Sales 매출액 열</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
                                         </div>
                                         <button onClick={handleApplySettings} className="w-full bg-blue-600 py-2 rounded text-white font-bold text-sm hover:bg-blue-500">설정 적용 및 데이터 다시 불러오기</button>
-                                        <button onClick={() => { setIsManual(false); alert("수동 모드가 해제되었습니다. 자동 업데이트가 재개됩니다."); fetchData(); }} className="w-full mt-2 bg-slate-700 py-2 rounded text-slate-300 font-bold text-sm hover:bg-slate-600">수동 입력 해제 (자동 복구)</button>
                                     </>
                                 ) : (
                                     <div className="space-y-4">
@@ -689,13 +677,8 @@
 
                             <div className="h-[30%] bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col min-h-0 shadow-lg">
                                 <div className="flex items-center justify-between mb-1 px-1">
-                                    <div className="flex items-center gap-2 text-slate-100 font-bold text-base">
-                                        <Icons.Target size={16} className="text-blue-400"/> Monthly Target Status
-                                        <span className="text-slate-400 text-sm font-normal ml-1">
-                                            (현재: {formatKoreanCurrency(totalRevenue)} / 목표: {formatKoreanCurrency(totalTarget)})
-                                        </span>
-                                    </div>
-                                    <span className="text-xs text-slate-400">단위: 원 (목표 대비 실적)</span>
+                                    <div className="flex items-center gap-2 text-orange-400 font-bold text-base"><Icons.Target size={16} className="text-orange-400"/> Monthly Target Status <span className="text-slate-400 text-sm font-normal ml-1">(현재: {formatKoreanCurrency(totalRevenue)} / 목표: {formatKoreanCurrency(totalTarget)})</span></div>
+                                    <span className="text-xs text-slate-400">단위: 원 (목표)</span>
                                 </div>
                                 <div className="flex-1"><SafeRecharts render={renderMonthlyChart} /></div>
                             </div>
@@ -707,8 +690,7 @@
                                 </div>
                                 <div className="flex-1 p-4 overflow-auto">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full">
-                                            <h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">입찰 공고 (최근 5건)</h3>
+                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full"><h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">입찰 공고 (최근 5건)</h3>
                                             <ul className="space-y-3 text-sm text-slate-300 flex-1 overflow-auto">
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">2025년도 정보시스템 유지관리 사업</span><span className="text-amber-500 font-bold ml-3 shrink-0">D-2</span></li>
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">공공데이터 개방 및 품질진단 용역</span><span className="text-slate-400 font-bold ml-3 shrink-0">D-5</span></li>
@@ -717,8 +699,7 @@
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors"><span className="truncate flex-1 font-medium">차세대 지방세정보시스템 유지관리</span><span className="text-slate-400 font-bold ml-3 shrink-0">D-12</span></li>
                                             </ul>
                                         </div>
-                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full">
-                                            <h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">지원사업 공고 (추천)</h3>
+                                        <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50 flex flex-col h-full"><h3 className="text-sm text-slate-300 font-bold mb-3 border-b border-slate-700 pb-2">지원사업 공고 (추천)</h3>
                                             <ul className="space-y-3 text-sm text-slate-300 flex-1 overflow-auto">
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">AI 바우처 지원사업 수요기업 모집</span><span className="text-emerald-500 font-bold ml-3 shrink-0">접수중</span></li>
                                                 <li className="flex justify-between hover:bg-slate-800 p-2 rounded cursor-pointer transition-colors border-b border-slate-800/50"><span className="truncate flex-1 font-medium">데이터 바우처 지원사업 하반기</span><span className="text-red-400 font-bold ml-3 shrink-0">마감임박</span></li>
