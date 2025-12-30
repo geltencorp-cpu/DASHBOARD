@@ -39,6 +39,11 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .slide-in { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .status-dot.live { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-dot.mock { background-color: #f59e0b; animation: blink 2s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
@@ -91,18 +96,6 @@
             return arr;
         };
 
-        const extractGid = (input) => {
-            if (!input) return '';
-            try {
-                if (/^\d+$/.test(input)) return input;
-                const url = new URL(input);
-                return url.searchParams.get('gid') || input;
-            } catch (e) {
-                const match = input.match(/gid=(\d+)/);
-                return (match && match[1]) ? match[1] : input;
-            }
-        };
-
         const parseCurrency = (str) => {
             if (!str) return 0;
             if (typeof str !== 'string' && typeof str !== 'number') return 0;
@@ -126,11 +119,9 @@
             let s = String(str).trim();
             if (s.startsWith('#') || s === '') return '';
 
-            // 1. YYYY-MM 추출
             const ymdMatch = s.match(/(\d{4})[.\-/년]\s*(\d{1,2})/);
             if (ymdMatch) return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}`;
             
-            // 2. 월만 있는 경우
             const monthMatch = s.match(/^(\d{1,2})(월)?$/);
             if (monthMatch) {
                 const m = parseInt(monthMatch[1]);
@@ -153,7 +144,7 @@
             { person: '박민수', type: '미팅' }, { person: '최지수', type: '제안서 작성' },
             { person: '정다은', type: '콜드콜' }, { person: '강현우', type: '네트워킹' }
         ];
-        // 데모용 목표 데이터
+        // 3번째 시트가 없을 경우 표시될 기본 목표 데이터
         const MOCK_TARGETS = [
             ['1월', '80000000'], ['2월', '90000000'], ['3월', '100000000'],
             ['4월', '110000000'], ['5월', '120000000'], ['6월', '130000000'],
@@ -238,7 +229,7 @@
                         <div className="flex border-b border-slate-700 bg-slate-900/30">
                             <button onClick={() => setActiveTab('activity')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'activity' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Briefcase size={14}/> Activity</button>
                             <button onClick={() => setActiveTab('sales')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'sales' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.DollarSign size={14}/> Sales</button>
-                            <button onClick={() => setActiveTab('target')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'target' ? 'text-slate-200 border-b-2 border-slate-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Target size={14}/> Target (목표)</button>
+                            <button onClick={() => setActiveTab('target')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'target' ? 'text-slate-200 border-b-2 border-slate-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Target size={14}/> Target</button>
                         </div>
                         <div className="flex-1 overflow-auto p-4 bg-slate-800">
                             {activeTab === 'activity' && (
@@ -285,7 +276,7 @@
                                         <tbody className="divide-y divide-slate-700">
                                             {localTargets.map((row, idx) => (
                                                 <tr key={idx} className="hover:bg-slate-700/50">
-                                                    <td className="p-1"><input type="text" value={row[0] || ''} onChange={(e) => updateTarget(idx, 0, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-slate-400 outline-none" placeholder="1월" /></td>
+                                                    <td className="p-1"><input type="text" value={row[0] || ''} onChange={(e) => updateTarget(idx, 0, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-slate-400 outline-none" /></td>
                                                     <td className="p-1"><input type="text" value={row[1] || ''} onChange={(e) => updateTarget(idx, 1, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-slate-400 outline-none text-right" placeholder="금액" /></td>
                                                     <td className="p-1 text-center"><button onClick={() => removeTarget(idx)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash size={14}/></button></td>
                                                 </tr>
@@ -321,15 +312,12 @@
             const [showEditor, setShowEditor] = useState(false);
             const [showRawInspector, setShowRawInspector] = useState(false);
 
-            // 기본값: 사용자가 제공한 pubhtml URL
-            const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTj7IFupi_2jWlpwGDDLYobhN_SJn0-p2DauCj5voi5-j6Ln2vrPoTxMeQgSLQJomngAfsfZwo-Jgqc/pubhtml";
-            const [sheetUrl, setSheetUrl] = useState(DEFAULT_SHEET_URL);
+            // 고정된 SHEET ID 및 GID
+            const SHEET_ID = '1W0OXOMzCvq6KlBwWpnnXQTgcOaC1gK4zftTEq5qmfns';
+            const [activityGid, setActivityGid] = useState('0');
+            const [salesGid, setSalesGid] = useState('1883872851');
+            const [targetGid, setTargetGid] = useState('1856051626'); // 세번째 시트 GID
             
-            // 시트별 GID (기본값 설정)
-            const [activityGid, setActivityGid] = useState('0'); // 첫번째 시트 (보통 Activity)
-            const [salesGid, setSalesGid] = useState('1883872851'); // 두번째 시트
-            const [targetGid, setTargetGid] = useState('1856051626'); // 세번째 시트 (Sales Activity Insights, 목표)
-
             const [colMap, setColMap] = useState({
                 date: 1,      // B열
                 manager: 2,   // C열
@@ -338,30 +326,11 @@
                 revenue: 7    // H열
             });
 
-            // URL 변환 로직 (pubhtml -> pub?output=csv & gid=...)
-            // gid가 있을 때는 해당 gid를 붙여서 특정 시트만 가져오도록 함
-            const getCsvUrl = (url, gid) => {
-                if (!url) return "";
-                let base = url;
-                if (url.includes("pubhtml")) {
-                    base = url.replace("pubhtml", "pub?output=csv");
-                } else if (url.includes("edit")) {
-                     // edit 링크인 경우 export 포맷으로 변경 시도 (권한 필요)
-                     base = url.replace(/\/edit.*$/, "/export?format=csv");
-                }
-                
-                // 이미 쿼리 파라미터가 있으면 & 없으면 ?
-                const separator = base.includes("?") ? "&" : "?";
-                // gid 파라미터 추가 (single=true는 웹게시 링크에서 특정 시트 가져올 때 필수)
-                return `${base}${separator}gid=${gid}&single=true`;
-            };
-
             // 데이터 로드
             const fetchAndParse = async (url) => {
                 try {
                     const res = await fetch(url);
                     const text = await res.text();
-                    // HTML 태그로 시작하면 실패로 간주 (권한 오류 등)
                     if (res.ok && !text.trim().startsWith('<')) {
                         const rows = parseCSV(text);
                         if (rows.length < 2) return null; 
@@ -373,12 +342,13 @@
 
             const fetchData = useCallback(async () => {
                 setLoading(true);
+                // 중요: export format=csv 사용
+                const getExportUrl = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
                 
                 let successCount = 0;
 
-                // 1. Activity (첫번째 시트: gid=0 또는 설정된 값)
-                const actUrl = getCsvUrl(sheetUrl, activityGid);
-                const actRows = await fetchAndParse(actUrl);
+                // 1. Activity
+                const actRows = await fetchAndParse(getExportUrl(activityGid));
                 if (actRows) {
                     const parsed = actRows.slice(1).map(r => ({ person: r[2], type: r[3] })).filter(r => r.person);
                     if(parsed.length > 0) { 
@@ -387,9 +357,8 @@
                     }
                 }
 
-                // 2. Sales (두번째 시트)
-                const salesUrl = getCsvUrl(sheetUrl, salesGid);
-                const salesRows = await fetchAndParse(salesUrl);
+                // 2. Sales
+                const salesRows = await fetchAndParse(getExportUrl(salesGid));
                 if (salesRows) {
                     setRawSales(salesRows.slice(0, 5));
                     if (salesRows.length > 1) {
@@ -398,11 +367,12 @@
                     }
                 }
                 
-                // 3. Targets (세번째 시트)
-                const targetUrl = getCsvUrl(sheetUrl, targetGid);
-                const targetRows = await fetchAndParse(targetUrl);
+                // 3. Targets (3번째 시트)
+                const targetRows = await fetchAndParse(getExportUrl(targetGid));
                 if (targetRows) {
                     setRawTarget(targetRows.slice(0, 5));
+                    // 3번째 시트 데이터 처리 (A:월, B:목표)
+                    // 헤더 제외하고 데이터가 있다면
                     if (targetRows.length > 1) {
                         setTargetData(targetRows.slice(1));
                         successCount++;
@@ -413,7 +383,7 @@
                 else setIsLiveSource(false);
 
                 setLoading(false);
-            }, [sheetUrl, activityGid, salesGid, targetGid]);
+            }, [activityGid, salesGid, targetGid]);
 
             useEffect(() => {
                 fetchData();
@@ -436,7 +406,7 @@
             // --- 데이터 가공 ---
             const processedActivityGroups = useMemo(() => {
                 const groups = {};
-                // 안전장치: 비어있거나 undefined이면 Mock 사용
+                // 안전장치
                 const source = (activityData && activityData.length > 0) ? activityData : MOCK_ACTIVITY;
                 source.forEach(item => {
                     if (!item) return;
@@ -467,7 +437,7 @@
                 return Object.values(aggregated);
             }, [salesData, colMap]);
 
-            // **Monthly Target ONLY** (매출 제외하고 목표만 표시, 1월~12월 고정)
+            // **Monthly Target ONLY**
             const processedMonthly = useMemo(() => {
                 const dataMap = new Map();
                 
@@ -477,18 +447,19 @@
                     dataMap.set(monthKey, { month: monthKey, target: 0, revenue: 0 });
                 }
                 
-                // 2. Target Data 매핑
-                const targets = (targetData && targetData.length > 0) ? targetData : MOCK_TARGETS;
-                targets.forEach(row => {
+                // 2. Target Data 매핑 (안전장치: 데이터 없으면 Mock 사용)
+                const sourceTargets = (targetData && targetData.length > 0) ? targetData : MOCK_TARGETS;
+                
+                sourceTargets.forEach(row => {
                     if (!row || row.length < 2) return;
-                    const rawDate = row[0];
+                    const rawDate = row[0]; // A열: 월
                     const key = normalizeMonth(rawDate); 
                     if(!key) return;
 
-                    const targetVal = parseCurrency(row[1]);
+                    const targetVal = parseCurrency(row[1]); // B열: 목표금액
                     // 1월~12월 범위 내에 있는 데이터만 합산
                     if (dataMap.has(key)) {
-                        dataMap.get(key).target += targetVal;
+                        dataMap.get(key).target = targetVal; // 합산이 아니라 해당 월 목표로 설정
                     }
                 });
 
@@ -500,7 +471,6 @@
             const chartData = useMemo(() => processedSales.filter(d => d.매출액 > 0), [processedSales]);
             const topSales = useMemo(() => [...processedSales].filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액).slice(0, 3), [processedSales]);
             const totalRevenue = useMemo(() => processedSales.reduce((acc, curr) => acc + curr.매출액, 0), [processedSales]);
-            // totalTarget 제거됨
 
             // --- 렌더러 ---
             const renderActivityChart = (group, idx, Recharts) => {
@@ -537,7 +507,8 @@
             };
 
             const renderMonthlyChart = (Recharts) => {
-                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+                const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } = Recharts;
+                const CustomBarLabel = ({ x, y, width, value }) => value > 0 ? <text x={x+width/2} y={y-5} fill="#fff" textAnchor="middle" fontSize={11} fontWeight="bold">{formatKoreanCurrency(value)}</text> : null;
                 return (
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
@@ -548,8 +519,9 @@
                             }} />
                             <YAxis stroke="#94a3b8" tick={{fontSize: 10}} tickFormatter={(val) => val>=100000000 ? `${val/100000000}억` : `${val/10000}만`} />
                             <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
-                            <Legend wrapperStyle={{fontSize: '11px', paddingTop: '5px'}} />
-                            <Bar name="목표" dataKey="target" fill={COLORS.target} radius={[4, 4, 0, 0]} maxBarSize={25} />
+                            <Bar name="목표" dataKey="target" fill={COLORS.target} radius={[4, 4, 0, 0]} maxBarSize={25}>
+                                <LabelList dataKey="target" content={<CustomBarLabel />} />
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 );
@@ -588,7 +560,6 @@
                             <div className="flex-1 overflow-auto">
                                 {!showRawInspector ? (
                                     <>
-                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sheet URL (pubhtml)</label><input type="text" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
                                         <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Activity GID</label><input type="text" value={activityGid} onChange={(e) => setActivityGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
                                         <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sales GID</label><input type="text" value={salesGid} onChange={(e) => setSalesGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
                                         <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Targets GID</label><input type="text" value={targetGid} onChange={(e) => setTargetGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
