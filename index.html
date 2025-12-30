@@ -27,27 +27,18 @@
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* 전체 스크롤 방지 */
+            overflow: hidden;
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #0f172a; /* slate-900 */
             color: #f1f5f9;
         }
-        
-        /* TV 화면용: 스크롤바 숨기기 (기능은 유지) */
-        ::-webkit-scrollbar {
-            display: none;
-        }
-        * {
-            -ms-overflow-style: none;  /* IE and Edge */
-            scrollbar-width: none;  /* Firefox */
-        }
-        
-        /* 테이블 셀 안의 내용이 넘칠 때 말줄임표 처리 */
-        .cell-truncate {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
+        ::-webkit-scrollbar { display: none; }
+        * { -ms-overflow-style: none; scrollbar-width: none; }
+        .cell-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .slide-in { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -56,13 +47,10 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- 아이콘 컴포넌트 ---
+        // --- 아이콘 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
-            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                {children}
-            </svg>
+            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
-
         const Icons = {
             LayoutDashboard: (p) => <Icon {...p}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></Icon>,
             RefreshCw: (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
@@ -77,7 +65,10 @@
             Trash: (p) => <Icon {...p}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></Icon>,
             Save: (p) => <Icon {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></Icon>,
             Target: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></Icon>,
-            Building: (p) => <Icon {...p}><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></Icon>
+            Building: (p) => <Icon {...p}><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></Icon>,
+            Eye: (p) => <Icon {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></Icon>,
+            Check: (p) => <Icon {...p}><polyline points="20 6 9 17 4 12"/></Icon>,
+            AlertTriangle: (p) => <Icon {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></Icon>
         };
 
         // --- 유틸리티 ---
@@ -114,7 +105,10 @@
 
         const parseCurrency = (str) => {
             if (!str) return 0;
-            const cleanStr = str.toString().replace(/[^0-9.-]/g, '');
+            if (typeof str !== 'string' && typeof str !== 'number') return 0;
+            const s = String(str).trim();
+            if (s.startsWith('#')) return 0; 
+            const cleanStr = s.replace(/[^0-9.-]/g, '');
             const num = parseFloat(cleanStr);
             return isNaN(num) ? 0 : Math.floor(num);
         };
@@ -129,29 +123,37 @@
         // --- 날짜 정규화 함수 ---
         const normalizeMonth = (str) => {
             if (!str) return '';
-            let s = str.trim();
-            const ymdMatch = s.match(/(\d{4})[\.\-\/년]\s*(\d{1,2})/);
+            let s = String(str).trim();
+            if (s.startsWith('#') || s === '') return '';
+
+            // 1. YYYY-MM 추출
+            const ymdMatch = s.match(/(\d{4})[.\-/년]\s*(\d{1,2})/);
             if (ymdMatch) return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}`;
+            
+            // 2. 월만 있는 경우
             const monthMatch = s.match(/^(\d{1,2})(월)?$/);
             if (monthMatch) {
                 const m = parseInt(monthMatch[1]);
                 if (m >= 1 && m <= 12) return `2025-${String(m).padStart(2, '0')}`;
             }
-            const d = new Date(s);
-            if (!isNaN(d.getTime())) {
-                const y = d.getFullYear();
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                return `${y}-${m}`;
-            }
-            return ''; 
+            return s; 
         };
 
         const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'];
         const COLORS = { revenue: '#10b981', target: '#64748b' };
 
-        // --- MOCK DATA (초기값 및 폴백) ---
-        const MOCK_SALES = [[null, '2025-01', '김철수', 'A고객사', '1', null, null, '50000000']];
-        const MOCK_ACTIVITY = [{ person: '김철수', type: '아웃바운드' }, { person: '이영희', type: '메일 영업' }];
+        // --- MOCK DATA ---
+        const MOCK_SALES = [
+            [null, '2025-01', '김철수', 'A고객사', '1', null, null, '50000000'],
+            [null, '2025-02', '이영희', 'B고객사', '1', null, null, '70000000'],
+            [null, '2025-03', '박민수', 'C고객사', '1', null, null, '120000000']
+        ];
+        const MOCK_ACTIVITY = [
+            { person: '김철수', type: '아웃바운드' }, { person: '이영희', type: '메일 영업' },
+            { person: '박민수', type: '미팅' }, { person: '최지수', type: '제안서 작성' },
+            { person: '정다은', type: '콜드콜' }, { person: '강현우', type: '네트워킹' }
+        ];
+        // 데모용 목표 데이터
         const MOCK_TARGETS = [
             ['1월', '80000000'], ['2월', '90000000'], ['3월', '100000000'],
             ['4월', '110000000'], ['5월', '120000000'], ['6월', '130000000'],
@@ -163,7 +165,6 @@
         const SafeRecharts = ({ render }) => {
             const [lib, setLib] = useState(window.Recharts);
             const [isTimeout, setIsTimeout] = useState(false);
-
             useEffect(() => {
                 if (lib) return;
                 const start = Date.now();
@@ -173,17 +174,17 @@
                 }, 100);
                 return () => clearInterval(timer);
             }, [lib]);
-
-            if (isTimeout) return <div className="flex h-full items-center justify-center text-xs text-red-400">차트 로드 실패 <button onClick={()=>window.location.reload()} className="ml-2 underline">새로고침</button></div>;
+            if (isTimeout) return <div className="flex h-full items-center justify-center text-xs text-red-400">차트 로딩 실패</div>;
             if (!lib) return <div className="flex h-full items-center justify-center text-xs text-slate-500 animate-pulse">차트 로딩...</div>;
             return render(lib);
         };
 
         // --- Data Editor Component ---
-        const DataEditor = ({ activityData, salesData, colMap, onSave, onClose }) => {
+        const DataEditor = ({ activityData, salesData, targetData, colMap, onSave, onClose }) => {
             const [activeTab, setActiveTab] = useState('activity');
             const [localActivity, setLocalActivity] = useState([...activityData]);
             const [localSales, setLocalSales] = useState([...salesData]);
+            const [localTargets, setLocalTargets] = useState([...targetData]);
 
             const updateActivity = (idx, field, val) => {
                 const newData = [...localActivity];
@@ -195,7 +196,6 @@
 
             const updateSales = (idx, colIdx, val) => {
                 const newData = [...localSales];
-                newData[idx] = [...newData[idx]]; 
                 while(newData[idx].length <= colIdx) newData[idx].push('');
                 newData[idx][colIdx] = val;
                 setLocalSales(newData);
@@ -209,8 +209,20 @@
             }
             const removeSales = (idx) => setLocalSales(localSales.filter((_, i) => i !== idx));
 
+            const updateTarget = (idx, colIdx, val) => {
+                const newData = [...localTargets];
+                while(newData[idx].length <= colIdx) newData[idx].push('');
+                newData[idx][colIdx] = val;
+                setLocalTargets(newData);
+            };
+            const addTarget = () => {
+                const newRow = ['', ''];
+                setLocalTargets([...localTargets, newRow]);
+            }
+            const removeTarget = (idx) => setLocalTargets(localTargets.filter((_, i) => i !== idx));
+
             const handleSave = () => {
-                onSave(localActivity, localSales);
+                onSave(localActivity, localSales, localTargets);
             };
 
             return (
@@ -223,22 +235,21 @@
                             </div>
                             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><Icons.X /></button>
                         </div>
-
                         <div className="flex border-b border-slate-700 bg-slate-900/30">
-                            <button onClick={() => setActiveTab('activity')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'activity' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Briefcase size={14}/> Activity Data</button>
-                            <button onClick={() => setActiveTab('sales')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'sales' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.DollarSign size={14}/> Sales Data</button>
+                            <button onClick={() => setActiveTab('activity')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'activity' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Briefcase size={14}/> Activity</button>
+                            <button onClick={() => setActiveTab('sales')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'sales' ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.DollarSign size={14}/> Sales</button>
+                            <button onClick={() => setActiveTab('target')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${activeTab === 'target' ? 'text-slate-200 border-b-2 border-slate-400 bg-slate-800' : 'text-slate-400 hover:text-slate-200'}`}><Icons.Target size={14}/> Target (목표)</button>
                         </div>
-
                         <div className="flex-1 overflow-auto p-4 bg-slate-800">
-                            {activeTab === 'activity' ? (
+                            {activeTab === 'activity' && (
                                 <div>
                                     <table className="w-full text-sm text-left text-slate-400">
                                         <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2">담당자</th><th className="px-3 py-2">활동 유형</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
                                         <tbody className="divide-y divide-slate-700">
                                             {localActivity.map((item, idx) => (
                                                 <tr key={idx} className="hover:bg-slate-700/50">
-                                                    <td className="p-1"><input type="text" value={item.person || ''} onChange={(e) => updateActivity(idx, 'person', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" placeholder="이름" /></td>
-                                                    <td className="p-1"><input type="text" value={item.type || ''} onChange={(e) => updateActivity(idx, 'type', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" placeholder="활동유형" /></td>
+                                                    <td className="p-1"><input type="text" value={item.person || ''} onChange={(e) => updateActivity(idx, 'person', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" /></td>
+                                                    <td className="p-1"><input type="text" value={item.type || ''} onChange={(e) => updateActivity(idx, 'type', e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none" /></td>
                                                     <td className="p-1 text-center"><button onClick={() => removeActivity(idx)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash size={14}/></button></td>
                                                 </tr>
                                             ))}
@@ -246,18 +257,18 @@
                                     </table>
                                     <button onClick={addActivity} className="mt-3 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-bold px-2 py-1 border border-blue-900 bg-blue-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button>
                                 </div>
-                            ) : (
+                            )}
+                            {activeTab === 'sales' && (
                                 <div>
-                                    <div className="mb-2 text-xs text-slate-500">* 날짜 형식(YYYY-MM)이 중요합니다.</div>
                                     <table className="w-full text-sm text-left text-slate-400">
                                         <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2 w-24">날짜</th><th className="px-3 py-2">담당자</th><th className="px-3 py-2">고객사</th><th className="px-3 py-2 w-32">매출액</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
                                         <tbody className="divide-y divide-slate-700">
                                             {localSales.map((row, idx) => (
                                                 <tr key={idx} className="hover:bg-slate-700/50">
-                                                    <td className="p-1"><input type="text" value={row[colMap.date] || ''} onChange={(e) => updateSales(idx, colMap.date, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-emerald-500 outline-none" placeholder="YYYY-MM" /></td>
+                                                    <td className="p-1"><input type="text" value={row[colMap.date] || ''} onChange={(e) => updateSales(idx, colMap.date, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-emerald-500 outline-none" /></td>
                                                     <td className="p-1"><input type="text" value={row[colMap.manager] || ''} onChange={(e) => updateSales(idx, colMap.manager, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-emerald-500 outline-none" /></td>
                                                     <td className="p-1"><input type="text" value={row[colMap.client] || ''} onChange={(e) => updateSales(idx, colMap.client, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-emerald-500 outline-none" /></td>
-                                                    <td className="p-1"><input type="text" value={row[colMap.revenue] || ''} onChange={(e) => updateSales(idx, colMap.revenue, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-emerald-500 outline-none text-right" placeholder="숫자만" /></td>
+                                                    <td className="p-1"><input type="text" value={row[colMap.revenue] || ''} onChange={(e) => updateSales(idx, colMap.revenue, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-emerald-500 outline-none text-right" /></td>
                                                     <td className="p-1 text-center"><button onClick={() => removeSales(idx)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash size={14}/></button></td>
                                                 </tr>
                                             ))}
@@ -266,8 +277,25 @@
                                     <button onClick={addSales} className="mt-3 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-bold px-2 py-1 border border-emerald-900 bg-emerald-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button>
                                 </div>
                             )}
+                            {activeTab === 'target' && (
+                                <div>
+                                    <div className="mb-2 text-xs text-slate-500">* 날짜는 'YYYY-MM' 또는 'M월' 형식으로 입력하세요. (예: 2025-01, 1월)</div>
+                                    <table className="w-full text-sm text-left text-slate-400">
+                                        <thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2 w-32">월 (Month)</th><th className="px-3 py-2">목표 금액</th><th className="px-3 py-2 text-center w-16">삭제</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                            {localTargets.map((row, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-700/50">
+                                                    <td className="p-1"><input type="text" value={row[0] || ''} onChange={(e) => updateTarget(idx, 0, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-slate-400 outline-none" placeholder="1월" /></td>
+                                                    <td className="p-1"><input type="text" value={row[1] || ''} onChange={(e) => updateTarget(idx, 1, e.target.value)} className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white focus:border-slate-400 outline-none text-right" placeholder="금액" /></td>
+                                                    <td className="p-1 text-center"><button onClick={() => removeTarget(idx)} className="text-red-400 hover:text-red-300 p-1"><Icons.Trash size={14}/></button></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    <button onClick={addTarget} className="mt-3 flex items-center gap-1 text-xs text-slate-400 hover:text-slate-300 font-bold px-2 py-1 border border-slate-700 bg-slate-800 rounded"><Icons.Plus size={12}/> 행 추가</button>
+                                </div>
+                            )}
                         </div>
-
                         <div className="p-3 border-t border-slate-700 bg-slate-900/50 rounded-b-lg flex justify-end gap-2">
                             <button onClick={onClose} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-bold transition-colors">취소</button>
                             <button onClick={handleSave} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold flex items-center gap-2 transition-colors shadow-lg shadow-blue-900/50"><Icons.Save size={14}/> 저장 및 적용</button>
@@ -278,19 +306,29 @@
         };
 
         function SalesDashboard() {
-            // 초기값에 Mock Data를 넣어 '처음에 보였다가 없어지는' 현상 방지
             const [activityData, setActivityData] = useState(MOCK_ACTIVITY);
             const [salesData, setSalesData] = useState(MOCK_SALES);
             const [targetData, setTargetData] = useState(MOCK_TARGETS);
+            
+            const [isLiveSource, setIsLiveSource] = useState(false);
+            
+            // 디버깅용 Raw Data
+            const [rawSales, setRawSales] = useState([]);
+            const [rawTarget, setRawTarget] = useState([]);
+
             const [loading, setLoading] = useState(false);
             const [showSettings, setShowSettings] = useState(false);
             const [showEditor, setShowEditor] = useState(false);
+            const [showRawInspector, setShowRawInspector] = useState(false);
 
-            const SHEET_ID = '1W0OXOMzCvq6KlBwWpnnXQTgcOaC1gK4zftTEq5qmfns';
-            const [activityGid, setActivityGid] = useState('0');
-            const [salesGid, setSalesGid] = useState('1883872851');
-            const [targetGid, setTargetGid] = useState('1856051626');
-            const [tempSalesInput, setTempSalesInput] = useState('');
+            // 기본값: 사용자가 제공한 pubhtml URL
+            const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTj7IFupi_2jWlpwGDDLYobhN_SJn0-p2DauCj5voi5-j6Ln2vrPoTxMeQgSLQJomngAfsfZwo-Jgqc/pubhtml";
+            const [sheetUrl, setSheetUrl] = useState(DEFAULT_SHEET_URL);
+            
+            // 시트별 GID (기본값 설정)
+            const [activityGid, setActivityGid] = useState('0'); // 첫번째 시트 (보통 Activity)
+            const [salesGid, setSalesGid] = useState('1883872851'); // 두번째 시트
+            const [targetGid, setTargetGid] = useState('1856051626'); // 세번째 시트 (Sales Activity Insights, 목표)
 
             const [colMap, setColMap] = useState({
                 date: 1,      // B열
@@ -300,73 +338,108 @@
                 revenue: 7    // H열
             });
 
-            // 데이터 로드 (실패/빈값 시 기존 Mock 데이터 유지)
+            // URL 변환 로직 (pubhtml -> pub?output=csv & gid=...)
+            // gid가 있을 때는 해당 gid를 붙여서 특정 시트만 가져오도록 함
+            const getCsvUrl = (url, gid) => {
+                if (!url) return "";
+                let base = url;
+                if (url.includes("pubhtml")) {
+                    base = url.replace("pubhtml", "pub?output=csv");
+                } else if (url.includes("edit")) {
+                     // edit 링크인 경우 export 포맷으로 변경 시도 (권한 필요)
+                     base = url.replace(/\/edit.*$/, "/export?format=csv");
+                }
+                
+                // 이미 쿼리 파라미터가 있으면 & 없으면 ?
+                const separator = base.includes("?") ? "&" : "?";
+                // gid 파라미터 추가 (single=true는 웹게시 링크에서 특정 시트 가져올 때 필수)
+                return `${base}${separator}gid=${gid}&single=true`;
+            };
+
+            // 데이터 로드
+            const fetchAndParse = async (url) => {
+                try {
+                    const res = await fetch(url);
+                    const text = await res.text();
+                    // HTML 태그로 시작하면 실패로 간주 (권한 오류 등)
+                    if (res.ok && !text.trim().startsWith('<')) {
+                        const rows = parseCSV(text);
+                        if (rows.length < 2) return null; 
+                        return rows;
+                    }
+                } catch(e) { }
+                return null;
+            };
+
             const fetchData = useCallback(async () => {
                 setLoading(true);
-                const getCsvUrl = (id, gid) => `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
                 
-                try {
-                    const res = await fetch(getCsvUrl(SHEET_ID, activityGid));
-                    const text = await res.text();
-                    if (res.ok && !text.trim().startsWith('<')) {
-                        const parsed = parseCSV(text).slice(1).map(r => ({ person: r[2], type: r[3] })).filter(r => r.person);
-                        if(parsed.length > 0) setActivityData(parsed);
-                    }
-                } catch(e) { console.warn("Activity fetch fail, keeping previous data"); }
+                let successCount = 0;
 
-                try {
-                    const res = await fetch(getCsvUrl(SHEET_ID, salesGid));
-                    const text = await res.text();
-                    if (res.ok && !text.trim().startsWith('<')) {
-                        const parsed = parseCSV(text).slice(1);
-                        if(parsed.length > 0) setSalesData(parsed);
+                // 1. Activity (첫번째 시트: gid=0 또는 설정된 값)
+                const actUrl = getCsvUrl(sheetUrl, activityGid);
+                const actRows = await fetchAndParse(actUrl);
+                if (actRows) {
+                    const parsed = actRows.slice(1).map(r => ({ person: r[2], type: r[3] })).filter(r => r.person);
+                    if(parsed.length > 0) { 
+                        setActivityData(parsed); 
+                        successCount++;
                     }
-                } catch(e) { console.warn("Sales fetch fail, keeping previous data"); }
+                }
+
+                // 2. Sales (두번째 시트)
+                const salesUrl = getCsvUrl(sheetUrl, salesGid);
+                const salesRows = await fetchAndParse(salesUrl);
+                if (salesRows) {
+                    setRawSales(salesRows.slice(0, 5));
+                    if (salesRows.length > 1) {
+                        setSalesData(salesRows.slice(1));
+                        successCount++;
+                    }
+                }
                 
-                try {
-                    const res = await fetch(getCsvUrl(SHEET_ID, targetGid));
-                    const text = await res.text();
-                    if (res.ok && !text.trim().startsWith('<')) {
-                        const parsed = parseCSV(text).slice(1);
-                        if(parsed.length > 0) setTargetData(parsed);
+                // 3. Targets (세번째 시트)
+                const targetUrl = getCsvUrl(sheetUrl, targetGid);
+                const targetRows = await fetchAndParse(targetUrl);
+                if (targetRows) {
+                    setRawTarget(targetRows.slice(0, 5));
+                    if (targetRows.length > 1) {
+                        setTargetData(targetRows.slice(1));
+                        successCount++;
                     }
-                } catch(e) { console.warn("Target fetch fail, keeping previous data"); }
+                }
+
+                if (successCount > 0) setIsLiveSource(true);
+                else setIsLiveSource(false);
 
                 setLoading(false);
-            }, [activityGid, salesGid, targetGid]);
+            }, [sheetUrl, activityGid, salesGid, targetGid]);
 
             useEffect(() => {
                 fetchData();
-                let timerId;
-                const scheduleNextUpdate = () => {
-                    const now = new Date();
-                    let target = new Date();
-                    target.setHours(18, 10, 0, 0);
-                    if (now >= target) target.setDate(target.getDate() + 1);
-                    const msUntilTarget = target.getTime() - now.getTime();
-                    timerId = setTimeout(() => { fetchData(); scheduleNextUpdate(); }, msUntilTarget);
-                };
-                scheduleNextUpdate();
-                return () => clearTimeout(timerId);
+                const timerId = setInterval(fetchData, 600000); 
+                return () => clearInterval(timerId);
             }, [fetchData]);
 
             const handleApplySettings = () => {
-                if (tempSalesInput) setSalesGid(extractGid(tempSalesInput));
                 setTimeout(() => { fetchData(); setShowSettings(false); }, 100);
             };
 
-            const handleEditorSave = (newActivity, newSales) => {
+            const handleEditorSave = (newActivity, newSales, newTargets) => {
                 setActivityData(newActivity);
                 setSalesData(newSales);
+                setTargetData(newTargets);
                 setShowEditor(false);
+                setIsLiveSource(true); 
             };
 
             // --- 데이터 가공 ---
             const processedActivityGroups = useMemo(() => {
                 const groups = {};
-                // activityData가 혹시라도 비어있으면 Mock 사용 (방어코드)
+                // 안전장치: 비어있거나 undefined이면 Mock 사용
                 const source = (activityData && activityData.length > 0) ? activityData : MOCK_ACTIVITY;
                 source.forEach(item => {
+                    if (!item) return;
                     const p = item.person;
                     const t = item.type ? item.type.trim() : '';
                     if (!p || !t || t === '기타') return; 
@@ -394,42 +467,40 @@
                 return Object.values(aggregated);
             }, [salesData, colMap]);
 
-            // **목표 대비 매출 로직 (날짜 형식 강화 및 정렬)**
+            // **Monthly Target ONLY** (매출 제외하고 목표만 표시, 1월~12월 고정)
             const processedMonthly = useMemo(() => {
                 const dataMap = new Map();
-
-                // 1. 목표 데이터 처리
+                
+                // 1. 1월~12월 빈 데이터 미리 생성 (축 고정)
+                for (let i = 1; i <= 12; i++) {
+                    const monthKey = `2025-${String(i).padStart(2, '0')}`;
+                    dataMap.set(monthKey, { month: monthKey, target: 0, revenue: 0 });
+                }
+                
+                // 2. Target Data 매핑
                 const targets = (targetData && targetData.length > 0) ? targetData : MOCK_TARGETS;
                 targets.forEach(row => {
                     if (!row || row.length < 2) return;
-                    const date = normalizeMonth(row[0]); 
-                    if (!date) return; // 변환 실패시 무시
+                    const rawDate = row[0];
+                    const key = normalizeMonth(rawDate); 
+                    if(!key) return;
+
                     const targetVal = parseCurrency(row[1]);
-                    if (!dataMap.has(date)) dataMap.set(date, { month: date, target: 0, revenue: 0 });
-                    dataMap.get(date).target = targetVal;
+                    // 1월~12월 범위 내에 있는 데이터만 합산
+                    if (dataMap.has(key)) {
+                        dataMap.get(key).target += targetVal;
+                    }
                 });
 
-                // 2. 매출 데이터 처리
-                const sales = (salesData && salesData.length > 0) ? salesData : MOCK_SALES;
-                sales.forEach(row => {
-                    if (!row) return;
-                    const date = normalizeMonth(row[colMap.date]);
-                    if (!date) return; // 변환 실패시 무시
-                    const revVal = parseCurrency(row[colMap.revenue]);
-                    if (!dataMap.has(date)) dataMap.set(date, { month: date, target: 0, revenue: 0 });
-                    dataMap.get(date).revenue += revVal;
-                });
-
-                // 3. 날짜순 정렬 (YYYY-MM 문자열 정렬)
                 return Array.from(dataMap.values())
                     .sort((a, b) => a.month.localeCompare(b.month))
-                    .map(d => ({ ...d, rate: d.target > 0 ? (d.revenue / d.target * 100).toFixed(1) : 0 }));
-            }, [salesData, targetData, colMap]);
+                    .map(d => ({ ...d, rate: 0 }));
+            }, [targetData]);
 
             const chartData = useMemo(() => processedSales.filter(d => d.매출액 > 0), [processedSales]);
             const topSales = useMemo(() => [...processedSales].filter(d => d.매출액 > 0).sort((a, b) => b.매출액 - a.매출액).slice(0, 3), [processedSales]);
             const totalRevenue = useMemo(() => processedSales.reduce((acc, curr) => acc + curr.매출액, 0), [processedSales]);
-            const totalTarget = useMemo(() => processedMonthly.reduce((acc, curr) => acc + curr.target, 0), [processedMonthly]);
+            // totalTarget 제거됨
 
             // --- 렌더러 ---
             const renderActivityChart = (group, idx, Recharts) => {
@@ -471,7 +542,6 @@
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={processedMonthly} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            {/* X축: 2025-01 -> 1월로 표시 */}
                             <XAxis dataKey="month" stroke="#94a3b8" tick={{fontSize: 11}} tickFormatter={(val) => {
                                 const parts = val.split('-');
                                 return parts.length === 2 ? `${parseInt(parts[1])}월` : val;
@@ -480,14 +550,13 @@
                             <Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} />
                             <Legend wrapperStyle={{fontSize: '11px', paddingTop: '5px'}} />
                             <Bar name="목표" dataKey="target" fill={COLORS.target} radius={[4, 4, 0, 0]} maxBarSize={25} />
-                            <Bar name="매출" dataKey="revenue" fill={COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={25} />
                         </BarChart>
                     </ResponsiveContainer>
                 );
             };
 
             return (
-                <div className="h-full w-full flex flex-col overflow-hidden text-slate-100 font-sans bg-slate-900">
+                <div className="h-full w-full flex flex-col overflow-hidden text-slate-100 font-sans bg-slate-900 fade-in">
                     <div className="h-12 bg-slate-800 border-b border-slate-700 px-4 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
                             <Icons.LayoutDashboard size={20} className="text-blue-500" />
@@ -495,26 +564,64 @@
                         </div>
                         <div className="flex items-center gap-3">
                             <span className="text-xs text-slate-400 mr-2 hidden sm:block font-medium">자동 업데이트: 매일 18:10</span>
-                            <button onClick={() => setShowEditor(true)} className="flex items-center gap-1 text-slate-300 hover:text-white px-2 py-1 hover:bg-slate-700 rounded transition-colors" title="데이터 수정"><Icons.Edit size={16} /> <span className="text-xs font-bold">수정</span></button>
+                            {/* Data Status Indicator */}
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isLiveSource ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-400' : 'bg-amber-600/20 border-amber-500/50 text-amber-400'}`}>
+                                {isLiveSource ? <Icons.Check size={14}/> : <Icons.AlertTriangle size={14}/>}
+                                {isLiveSource ? 'Live Data' : 'Check Source'}
+                            </div>
                             <div className="h-5 w-[1px] bg-slate-600 mx-1"></div>
+                            <button onClick={() => setShowEditor(true)} className="flex items-center gap-1 text-slate-300 hover:text-white px-2 py-1 hover:bg-slate-700 rounded transition-colors" title="데이터 수정"><Icons.Edit size={16} /> <span className="text-xs font-bold">수정</span></button>
                             <button onClick={() => setShowSettings(!showSettings)} className="text-slate-300 hover:text-white p-1 hover:bg-slate-700 rounded"><Icons.Settings size={18} /></button>
                             <button onClick={fetchData} className={`text-slate-300 hover:text-white p-1 hover:bg-slate-700 rounded ${loading ? 'animate-spin' : ''}`}><Icons.RefreshCw size={18} /></button>
                         </div>
                     </div>
 
-                    {showEditor && <DataEditor activityData={activityData} salesData={salesData} colMap={colMap} onSave={handleEditorSave} onClose={() => setShowEditor(false)} />}
+                    {showEditor && <DataEditor activityData={activityData} salesData={salesData} targetData={targetData} colMap={colMap} onSave={handleEditorSave} onClose={() => setShowEditor(false)} />}
 
                     {showSettings && (
-                        <div className="absolute top-14 right-4 z-50 w-96 bg-slate-800 border border-slate-600 rounded shadow-2xl p-4 text-sm">
-                            <div className="flex justify-between mb-3"><span className="font-bold text-base">데이터 매핑 설정</span><button onClick={() => setShowSettings(false)}><Icons.X size={18}/></button></div>
-                            <div className="mb-3"><input type="text" value={tempSalesInput || salesGid} onChange={(e) => setTempSalesInput(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" placeholder="시트 URL..." /></div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div><label className="text-slate-400 text-xs">날짜 (idx)</label><input type="number" value={colMap.date} onChange={(e) => setColMap({...colMap, date: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
-                                <div><label className="text-slate-400 text-xs">담당자 (idx)</label><input type="number" value={colMap.manager} onChange={(e) => setColMap({...colMap, manager: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
-                                <div><label className="text-slate-400 text-xs">계약처 (idx)</label><input type="number" value={colMap.client} onChange={(e) => setColMap({...colMap, client: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
-                                <div><label className="text-slate-400 text-xs">매출액 (idx)</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                        <div className="absolute top-14 right-4 z-50 w-[500px] bg-slate-800 border border-slate-600 rounded shadow-2xl p-4 text-sm slide-in flex flex-col max-h-[80vh] overflow-hidden">
+                            <div className="flex justify-between mb-3 shrink-0"><span className="font-bold text-base text-white">데이터 설정 및 미리보기</span><button onClick={() => setShowSettings(false)}><Icons.X size={18}/></button></div>
+                            <div className="flex gap-2 mb-3 shrink-0 border-b border-slate-700 pb-2">
+                                <button onClick={()=>setShowRawInspector(false)} className={`px-3 py-1 rounded ${!showRawInspector ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>매핑 설정</button>
+                                <button onClick={()=>setShowRawInspector(true)} className={`px-3 py-1 rounded flex items-center gap-1 ${showRawInspector ? 'bg-blue-600 text-white' : 'text-slate-400'}`}><Icons.Eye size={12}/> 데이터 미리보기</button>
                             </div>
-                            <button onClick={handleApplySettings} className="mt-4 w-full bg-blue-600 py-2 rounded text-white font-bold text-sm hover:bg-blue-500">저장 및 불러오기</button>
+                            <div className="flex-1 overflow-auto">
+                                {!showRawInspector ? (
+                                    <>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sheet URL (pubhtml)</label><input type="text" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Activity GID</label><input type="text" value={activityGid} onChange={(e) => setActivityGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Sales GID</label><input type="text" value={salesGid} onChange={(e) => setSalesGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1">Targets GID</label><input type="text" value={targetGid} onChange={(e) => setTargetGid(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        
+                                        <div className="grid grid-cols-2 gap-3 mb-4 border-t border-slate-700 pt-3">
+                                            <div><label className="text-slate-400 text-xs block mb-1">날짜 열 (Index)</label><input type="number" value={colMap.date} onChange={(e) => setColMap({...colMap, date: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">담당자 열 (Index)</label><input type="number" value={colMap.manager} onChange={(e) => setColMap({...colMap, manager: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">계약처 열 (Index)</label><input type="number" value={colMap.client} onChange={(e) => setColMap({...colMap, client: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                            <div><label className="text-slate-400 text-xs block mb-1">매출액 열 (Index)</label><input type="number" value={colMap.revenue} onChange={(e) => setColMap({...colMap, revenue: parseInt(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"/></div>
+                                        </div>
+                                        <button onClick={handleApplySettings} className="w-full bg-blue-600 py-2 rounded text-white font-bold text-sm hover:bg-blue-500">설정 적용 및 데이터 다시 불러오기</button>
+                                    </>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-emerald-400 font-bold mb-2 text-xs">Sales Data (Top 5)</h4>
+                                            <div className="overflow-x-auto bg-slate-900 p-2 rounded border border-slate-700">
+                                                <table className="text-[10px] w-full text-left text-slate-300"><tbody>
+                                                    {rawSales.length > 0 ? rawSales.map((row, i) => (<tr key={i} className="border-b border-slate-800"><td className="p-1 text-slate-500">{i}</td>{row.map((cell, j) => <td key={j} className="p-1 border-r border-slate-800 truncate max-w-[60px]" title={cell}>{cell}</td>)}</tr>)) : <tr><td className="p-2 text-slate-500">데이터 없음 (데모모드 또는 로딩 실패)</td></tr>}
+                                                </tbody></table>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-blue-400 font-bold mb-2 text-xs">Target Data (Top 5)</h4>
+                                            <div className="overflow-x-auto bg-slate-900 p-2 rounded border border-slate-700">
+                                                <table className="text-[10px] w-full text-left text-slate-300"><tbody>
+                                                    {rawTarget.length > 0 ? rawTarget.map((row, i) => (<tr key={i} className="border-b border-slate-800"><td className="p-1 text-slate-500">{i}</td>{row.map((cell, j) => <td key={j} className="p-1 border-r border-slate-800 truncate max-w-[60px]" title={cell}>{cell}</td>)}</tr>)) : <tr><td className="p-2 text-slate-500">데이터 없음 (데모모드 또는 로딩 실패)</td></tr>}
+                                                </tbody></table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -522,13 +629,12 @@
                         <div className="col-span-3 bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col h-full overflow-hidden shadow-lg">
                             <div className="flex items-center gap-2 mb-2 text-blue-400 font-bold text-base shrink-0 border-b border-slate-700/50 pb-2"><Icons.Briefcase size={16}/> Daily Activities</div>
                             <div className="flex-1 flex flex-col gap-2 overflow-hidden">
-                                {processedActivityGroups.map((g, i) => (
+                                {processedActivityGroups.length > 0 ? processedActivityGroups.map((g, i) => (
                                     <div key={g.type} className="flex-1 min-h-0 bg-slate-900/40 rounded-lg p-2 flex flex-col border border-slate-700/30">
                                         <span className="text-xs font-bold text-slate-200 flex items-center gap-2 mb-1 px-1 shrink-0"><Icons.Layers size={12} style={{color:CHART_COLORS[i%8]}}/> {g.type} <span className="text-slate-400 font-normal">({g.totalCount})</span></span>
                                         <div className="flex-1 min-h-0"><SafeRecharts render={(r) => renderActivityChart(g, i, r)} /></div>
                                     </div>
-                                ))}
-                                {processedActivityGroups.length === 0 && <div className="flex-1 flex items-center justify-center text-sm text-slate-500">데이터 없음</div>}
+                                )) : <div className="flex-1 flex items-center justify-center text-sm text-slate-500">데이터 없음</div>}
                             </div>
                         </div>
 
@@ -558,8 +664,9 @@
 
                             <div className="h-[30%] bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col min-h-0 shadow-lg">
                                 <div className="flex items-center justify-between mb-1 px-1">
-                                    <div className="flex items-center gap-2 text-slate-100 font-bold text-base"><Icons.Target size={16} className="text-blue-400"/> Monthly Target vs Revenue <span className="text-slate-400 text-sm font-normal ml-1">(현재: {formatKoreanCurrency(totalRevenue)} / 목표: {formatKoreanCurrency(totalTarget)})</span></div>
-                                    <span className="text-xs text-slate-400">단위: 원 (목표 대비 실적)</span>
+                                    {/* 목표 총 매출 텍스트 제거됨 */}
+                                    <div className="flex items-center gap-2 text-slate-100 font-bold text-base"><Icons.Target size={16} className="text-blue-400"/> Monthly Target Status</div>
+                                    <span className="text-xs text-slate-400">단위: 원 (목표)</span>
                                 </div>
                                 <div className="flex-1"><SafeRecharts render={renderMonthlyChart} /></div>
                             </div>
