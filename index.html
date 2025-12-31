@@ -360,10 +360,15 @@
                     if (supportRows && supportRows.length > 1) {
                         const parsedSupport = supportRows.slice(1).map(r => {
                             const dateVal = r[supportColMap.date] || '';
+                            let rawTitle = r[supportColMap.title] || '';
+                            // Remove 'undefined' or 'undefinedv' from the start
+                            let title = String(rawTitle).replace(/^undefinedv?/, '').trim();
+
                             return {
-                                title: r[supportColMap.title] || '',
+                                title: title,
                                 status: getDday(dateVal),
                                 color: getDday(dateVal) === '마감' ? 'red' : 'emerald',
+                                agency: r[supportColMap.agency] || '', // Add agency
                                 url: r[supportColMap.url] || '' 
                             };
                         }).filter(r => r.title);
@@ -499,6 +504,7 @@
                                             <div className="grid grid-cols-4 gap-2 mb-3">
                                                 <div><label className="text-[10px] text-slate-500">제목 열</label><input type="number" value={supportColMap.title} onChange={e=>setSupportColMap({...supportColMap, title:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
                                                 <div><label className="text-[10px] text-slate-500">날짜 열</label><input type="number" value={supportColMap.date} onChange={e=>setSupportColMap({...supportColMap, date:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
+                                                <div><label className="text-[10px] text-slate-500">기관 열</label><input type="number" value={supportColMap.agency} onChange={e=>setSupportColMap({...supportColMap, agency:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
                                                 <div><label className="text-[10px] text-slate-500">URL 열</label><input type="number" value={supportColMap.url} onChange={e=>setSupportColMap({...supportColMap, url:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
                                             </div>
                                         </div>
@@ -618,7 +624,7 @@
                                             </ul>
                                         </div>
 
-                                        {/* 지원사업 리스트 */}
+                                        {/* 지원사업 리스트 (업데이트됨) */}
                                         <div className={`rounded-lg p-3 border flex flex-col h-full overflow-hidden min-h-0 ${showTrash ? 'bg-red-900/10 border-red-900/30' : 'bg-slate-900/40 border-slate-700/50'}`}>
                                             <h3 className={`text-sm font-bold mb-3 border-b pb-2 shrink-0 ${showTrash ? 'text-red-300 border-red-900/30' : 'text-slate-300 border-slate-700'}`}>
                                                 {showTrash ? '지원사업 (휴지통)' : '지원사업'}
@@ -629,8 +635,11 @@
                                                         <div className="flex justify-between items-center w-full">
                                                             <div className="flex flex-col overflow-hidden w-full cursor-pointer mr-2" onClick={() => item.url && window.open(item.url, '_blank')}>
                                                                 <span className="truncate flex-1 font-bold group-hover:text-blue-300 transition-colors text-slate-200 text-xs">{item.title}</span>
-                                                                <div className="flex items-center text-[10px] mt-0">
-                                                                    <span className={`font-bold ${item.color==='red'?'text-red-400':(item.color==='emerald'?'text-emerald-500':'text-slate-400')}`}>{item.status}</span>
+                                                                <div className="flex items-center text-[10px] text-slate-500 mt-0">
+                                                                    <span className="truncate max-w-[70%]">{item.agency}</span>
+                                                                    <span className={`ml-2 font-bold whitespace-nowrap ${item.status?.includes('마감') ? 'text-red-400' : 'text-emerald-500'}`}>
+                                                                        [{item.status}]
+                                                                    </span>
                                                                     <div className="ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                                                                         {showTrash ? (
                                                                             <button 
