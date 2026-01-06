@@ -64,51 +64,24 @@
             25%, 75% { opacity: 0.5; transform: scale(0.98); }
         }
         .flash-urgent { animation: flashUrgent 0.8s infinite; }
-
-        /* 마감 임박 애니메이션 (공고용) - 은은하게 (번쩍임 제거) */
         
-        /* Resizer Styles - Improved Hit Area & Z-Index */
+        /* Resizer Styles */
         .resizer-v {
-            width: 8px; /* 넓힘 */
-            cursor: col-resize;
-            background-color: transparent;
-            transition: background-color 0.2s;
-            flex-shrink: 0;
-            z-index: 50; /* 최상위 */
-            touch-action: none;
+            width: 8px; cursor: col-resize; background-color: transparent; transition: background-color 0.2s; flex-shrink: 0; z-index: 50; touch-action: none;
         }
-        .resizer-v:hover, .resizer-v.resizing {
-            background-color: #3b82f6; /* Blue-500 */
-        }
+        .resizer-v:hover, .resizer-v.resizing { background-color: #3b82f6; }
         .resizer-h {
-            height: 8px; /* 넓힘 */
-            cursor: row-resize;
-            background-color: transparent;
-            transition: background-color 0.2s;
-            flex-shrink: 0;
-            z-index: 50; /* 최상위 */
-            touch-action: none;
+            height: 8px; cursor: row-resize; background-color: transparent; transition: background-color 0.2s; flex-shrink: 0; z-index: 50; touch-action: none;
         }
-        .resizer-h:hover, .resizer-h.resizing {
-            background-color: #3b82f6;
-        }
+        .resizer-h:hover, .resizer-h.resizing { background-color: #3b82f6; }
     </style>
 </head>
 <body>
     <div id="root" class="h-screen w-screen bg-slate-900"></div>
 
     <script type="text/babel">
-        // ResizeObserver Loop Error 억제
-        const resizeObserverLoopErr = /Loop limit exceeded/;
-        window.addEventListener('error', (e) => {
-            if (resizeObserverLoopErr.test(e.message)) {
-                e.stopImmediatePropagation();
-            }
-        });
-
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-        // --- 아이콘 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
             <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
@@ -155,7 +128,6 @@
             return arr;
         };
 
-        // [MODIFIED] Added timestamp to prevent caching
         const extractGid = (input) => {
             if (!input) return '';
             try {
@@ -168,8 +140,11 @@
             }
         };
         
-        // [MODIFIED] Updated getGvizUrl to include timestamp for strong cache busting
-        const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&t=${Date.now()}`;
+        // Standard Gviz URL
+        const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&_=${Date.now()}`;
+        
+        // [NEW] Export URL for direct CSV download (More reliable for simple reads)
+        const getExportUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/export?format=csv&gid=${gid}&_=${Date.now()}`;
 
         const parseCurrency = (str) => {
             if (!str) return 0;
@@ -188,41 +163,15 @@
             return val.toLocaleString();
         };
 
-        // --- NEW: D-Day 파싱 함수 (날짜 계산 안하고 텍스트 그대로 읽음) ---
         const parseDdayInfo = (str) => {
             if (!str) return { days: 9999, label: '-' };
             const s = String(str).trim().toUpperCase();
-
-            // 1. "D-Day", "D-5", "D-13", "D+3" 등 D-Day 형식 텍스트 그대로 인식
-            
-            // D-Day (당일)
-            if (s === 'D-DAY' || s === 'D-0') {
-                return { days: 0, label: 'D-Day' };
-            }
-
-            // D-XX (남은 날짜)
+            if (s === 'D-DAY' || s === 'D-0') return { days: 0, label: 'D-Day' };
             const dMinus = s.match(/D\s*-\s*(\d+)/);
-            if (dMinus) {
-                const days = parseInt(dMinus[1]);
-                return { days: days, label: `D-${days}` };
-            }
-
-            // D+XX (마감 지남)
+            if (dMinus) { const days = parseInt(dMinus[1]); return { days: days, label: `D-${days}` }; }
             const dPlus = s.match(/D\s*\+\s*(\d+)/);
-            if (dPlus) {
-                // 마감된 것은 정렬 순위 낮게 (음수 처리 등)
-                // 여기서는 정렬 시 "마감" 그룹으로 보내기 위해 -1 (또는 -days)로 처리
-                // 사용자가 "D-13", "D-2" 등 남은 것 위주로 보므로
-                // 마감된 것은 days를 음수로 두어 정렬 시 아래로 보냄.
-                return { days: -parseInt(dPlus[1]), label: '마감' };
-            }
-
-            // "마감" 텍스트
-            if (s.includes('마감')) {
-                return { days: -1, label: '마감' };
-            }
-
-            // 2. 만약 날짜 형식이면 (혹시 몰라 남겨둠 - 거의 안 쓰일 듯)
+            if (dPlus) return { days: -parseInt(dPlus[1]), label: '마감' };
+            if (s.includes('마감')) return { days: -1, label: '마감' };
             const date = parseDateString(s);
             if (date) {
                 const today = new Date();
@@ -232,12 +181,9 @@
                 const label = diff < 0 ? "마감" : (diff === 0 ? "D-Day" : `D-${diff}`);
                 return { days: diff, label: label };
             }
-
-            // 3. 알 수 없는 형식
             return { days: 9999, label: s };
         };
 
-        // 기존 날짜 파서 (백업용)
         const parseDateString = (dateStr) => {
             if (!dateStr) return null;
             const s = String(dateStr).trim();
@@ -358,6 +304,7 @@
             const [showEditor, setShowEditor] = useState(false);
             const [showRawInspector, setShowRawInspector] = useState(false);
             const [showTrash, setShowTrash] = useState(false);
+            const [trashStatus, setTrashStatus] = useState(null); // 'connected' | 'error' | null
 
             // [NEW] Default Script URL from User
             const [scriptUrl, setScriptUrl] = useState('https://script.google.com/macros/s/AKfycbxgDywkmeNjsVGAJP_HbhJiwILb64Uq7g-TEs90q7dpCTZCSvcya8-pHJYRt_Ibijg/exec');
@@ -434,7 +381,10 @@
                 document.addEventListener('mouseup', stopResize);
             };
 
-            const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&t=${Date.now()}`;
+            const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&_=${Date.now()}`;
+            
+            // [NEW] Export URL for reliable fetching
+            const getExportUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/export?format=csv&gid=${gid}&_=${Date.now()}`;
 
             const handleTrashAction = async (title, type, action) => {
                 if (!scriptUrl) {
@@ -466,7 +416,7 @@
 
             const fetchAndParse = async (url) => {
                 try {
-                    const res = await fetch(url);
+                    const res = await fetch(url, { cache: "no-store" });
                     const text = await res.text();
                     if (res.ok && !text.trim().startsWith('<')) {
                         const rows = parseCSV(text);
@@ -482,27 +432,35 @@
                 setLoading(true);
                 let successCount = 0;
 
-                // [STEP 1] Fetch Trash Data First (Priority: Always GViz for reliability)
+                // [STEP 1] Fetch Trash Data First using EXPORT URL (More reliable for read-only)
                 let deletedSet = new Set();
                 if (trashSheetId) {
                      try {
-                         // Always fetch fresh trash data from GViz using timestamp
-                         // Adding 't' parameter to bust cache
-                         const trashUrl = getGvizUrl(trashSheetId, '0'); 
+                         // Use export format instead of GViz for more reliable simple data fetching
+                         const trashUrl = getExportUrl(trashSheetId, '0'); 
                          const trashRows = await fetchAndParse(trashUrl);
                          
                          if (trashRows && trashRows.length > 1) { 
                              // Skip header row (index 0)
                              trashRows.slice(1).forEach(r => {
                                  // Column A (index 0) contains the Title
+                                 // [FIX] remove spaces/special chars for robust comparison
                                  if (r[0]) {
-                                     deletedSet.add(String(r[0]).trim());
+                                     // Remove spaces, tabs, and parentheses content if needed for loose matching
+                                     // Here we stick to removing whitespace for safety
+                                     const cleanTitle = String(r[0]).trim().replace(/\s+/g, '');
+                                     if(cleanTitle) deletedSet.add(cleanTitle);
                                  }
                              });
+                             setTrashStatus({ type: 'success', count: deletedSet.size });
+                         } else {
+                             // If empty or just header
+                             setTrashStatus({ type: 'success', count: 0 }); 
                          }
-                         console.log("Trash loaded from GViz:", deletedSet.size, "items");
+                         console.log("Trash loaded items:", deletedSet.size);
                      } catch (e) {
                          console.error("Failed to load trash data:", e);
+                         setTrashStatus({ type: 'error', msg: '연결 실패' });
                      }
                 }
 
@@ -544,8 +502,9 @@
                                 }
                             }
 
-                            // [STEP 3] Compare with deletedSet immediately
-                            const isDeleted = deletedSet.has(title);
+                            // [STEP 3] Compare with deletedSet immediately (remove spaces)
+                            const cleanCheckTitle = title.replace(/\s+/g, '');
+                            const isDeleted = deletedSet.has(cleanCheckTitle);
 
                             return {
                                 title: title,
@@ -583,8 +542,9 @@
                                 }
                             }
 
-                            // [STEP 3] Compare with deletedSet immediately
-                            const isDeleted = deletedSet.has(title);
+                            // [STEP 3] Compare with deletedSet immediately (remove spaces)
+                            const cleanCheckTitle = title.replace(/\s+/g, '');
+                            const isDeleted = deletedSet.has(cleanCheckTitle);
 
                             return {
                                 title: title,
@@ -602,7 +562,7 @@
 
                 setIsLiveSource(successCount > 0);
                 setLoading(false);
-            }, [salesSheetId, naraSheetId, trashSheetId, activityGid, salesGid, actColMap, colMap, naraColMap, isManual, naraGid, supportGid, scriptUrl]); // Added scriptUrl to deps
+            }, [salesSheetId, naraSheetId, trashSheetId, activityGid, salesGid, actColMap, colMap, naraColMap, isManual, naraGid, supportGid, scriptUrl]);
 
             useEffect(() => { fetchData(); const t = setInterval(fetchData, 600000); return () => clearInterval(t); }, [fetchData]);
 
@@ -740,7 +700,18 @@
                                             <input type="text" value={scriptUrl} onChange={(e) => setScriptUrl(e.target.value)} placeholder="Apps Script 배포 URL (https://script.google.com/...)" className="w-full bg-slate-900 border border-indigo-500 rounded px-2 py-2 text-white" />
                                             <p className="text-[10px] text-slate-400 mt-1">* ⚠️ 중요: 삭제 버튼을 사용하려면 제공된 Apps Script를 휴지통 시트에 설치하고 배포한 주소를 여기에 입력하세요.</p>
                                         </div>
-                                        <div className="mb-3"><label className="block text-slate-400 text-xs mb-1 font-bold">휴지통 시트 ID</label><input type="text" value={trashSheetId} onChange={(e) => setTrashSheetId(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" /></div>
+                                        <div className="mb-3 p-2 border border-slate-700 rounded bg-slate-900/50">
+                                            <label className="block text-slate-400 text-xs mb-1 font-bold">휴지통 시트 ID</label>
+                                            <input type="text" value={trashSheetId} onChange={(e) => setTrashSheetId(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white" />
+                                            <div className="mt-2 text-xs flex items-center justify-between">
+                                                <span className="text-slate-400">상태:</span>
+                                                {trashStatus ? (
+                                                    trashStatus.type === 'success' ? 
+                                                    <span className="text-emerald-400 font-bold">✅ 연결 성공 ({trashStatus.count}개)</span> : 
+                                                    <span className="text-red-400 font-bold">❌ {trashStatus.msg}</span>
+                                                ) : <span className="text-slate-500">대기 중...</span>}
+                                            </div>
+                                        </div>
                                         <div className="mb-3"><label className="block text-emerald-400 text-xs mb-1 font-bold">매출/활동 시트 ID</label><input type="text" value={salesSheetId} onChange={(e) => setSalesSheetId(e.target.value)} className="w-full bg-slate-900 border border-emerald-600 rounded px-2 py-2 text-white" /></div>
                                         <div className="my-3 border-t border-slate-700 pt-3"><h4 className="text-indigo-400 font-bold mb-2 text-xs">나라장터 / 지원사업 설정</h4>
                                             <div className="mb-3"><label className="block text-emerald-400 text-xs mb-1 font-bold">공고/지원 시트 ID</label><input type="text" value={naraSheetId} onChange={(e) => setNaraSheetId(e.target.value)} className="w-full bg-slate-900 border border-emerald-600 rounded px-2 py-2 text-white" /></div>
