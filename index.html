@@ -65,15 +65,33 @@
         }
         .flash-urgent { animation: flashUrgent 0.8s infinite; }
 
-        /* Resizer Styles */
+        /* 마감 임박 애니메이션 (공고용) - 은은하게 (번쩍임 제거) */
+        
+        /* Resizer Styles - Improved Hit Area & Z-Index */
         .resizer-v {
-            width: 8px; cursor: col-resize; background-color: transparent; transition: background-color 0.2s; flex-shrink: 0; z-index: 50; touch-action: none;
+            width: 8px; /* 넓힘 */
+            cursor: col-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+            z-index: 50; /* 최상위 */
+            touch-action: none;
         }
-        .resizer-v:hover, .resizer-v.resizing { background-color: #3b82f6; }
+        .resizer-v:hover, .resizer-v.resizing {
+            background-color: #3b82f6; /* Blue-500 */
+        }
         .resizer-h {
-            height: 8px; cursor: row-resize; background-color: transparent; transition: background-color 0.2s; flex-shrink: 0; z-index: 50; touch-action: none;
+            height: 8px; /* 넓힘 */
+            cursor: row-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+            z-index: 50; /* 최상위 */
+            touch-action: none;
         }
-        .resizer-h:hover, .resizer-h.resizing { background-color: #3b82f6; }
+        .resizer-h:hover, .resizer-h.resizing {
+            background-color: #3b82f6;
+        }
     </style>
 </head>
 <body>
@@ -137,6 +155,7 @@
             return arr;
         };
 
+        // [MODIFIED] Added timestamp to prevent caching
         const extractGid = (input) => {
             if (!input) return '';
             try {
@@ -149,8 +168,8 @@
             }
         };
         
-        // [MODIFIED] Force timestamp to ensure fresh data
-        const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&_=${Date.now()}`;
+        // [MODIFIED] Updated getGvizUrl to include timestamp for strong cache busting
+        const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&t=${Date.now()}`;
 
         const parseCurrency = (str) => {
             if (!str) return 0;
@@ -169,15 +188,41 @@
             return val.toLocaleString();
         };
 
+        // --- NEW: D-Day 파싱 함수 (날짜 계산 안하고 텍스트 그대로 읽음) ---
         const parseDdayInfo = (str) => {
             if (!str) return { days: 9999, label: '-' };
             const s = String(str).trim().toUpperCase();
-            if (s === 'D-DAY' || s === 'D-0') return { days: 0, label: 'D-Day' };
+
+            // 1. "D-Day", "D-5", "D-13", "D+3" 등 D-Day 형식 텍스트 그대로 인식
+            
+            // D-Day (당일)
+            if (s === 'D-DAY' || s === 'D-0') {
+                return { days: 0, label: 'D-Day' };
+            }
+
+            // D-XX (남은 날짜)
             const dMinus = s.match(/D\s*-\s*(\d+)/);
-            if (dMinus) { const days = parseInt(dMinus[1]); return { days: days, label: `D-${days}` }; }
+            if (dMinus) {
+                const days = parseInt(dMinus[1]);
+                return { days: days, label: `D-${days}` };
+            }
+
+            // D+XX (마감 지남)
             const dPlus = s.match(/D\s*\+\s*(\d+)/);
-            if (dPlus) return { days: -parseInt(dPlus[1]), label: '마감' };
-            if (s.includes('마감')) return { days: -1, label: '마감' };
+            if (dPlus) {
+                // 마감된 것은 정렬 순위 낮게 (음수 처리 등)
+                // 여기서는 정렬 시 "마감" 그룹으로 보내기 위해 -1 (또는 -days)로 처리
+                // 사용자가 "D-13", "D-2" 등 남은 것 위주로 보므로
+                // 마감된 것은 days를 음수로 두어 정렬 시 아래로 보냄.
+                return { days: -parseInt(dPlus[1]), label: '마감' };
+            }
+
+            // "마감" 텍스트
+            if (s.includes('마감')) {
+                return { days: -1, label: '마감' };
+            }
+
+            // 2. 만약 날짜 형식이면 (혹시 몰라 남겨둠 - 거의 안 쓰일 듯)
             const date = parseDateString(s);
             if (date) {
                 const today = new Date();
@@ -187,9 +232,12 @@
                 const label = diff < 0 ? "마감" : (diff === 0 ? "D-Day" : `D-${diff}`);
                 return { days: diff, label: label };
             }
+
+            // 3. 알 수 없는 형식
             return { days: 9999, label: s };
         };
 
+        // 기존 날짜 파서 (백업용)
         const parseDateString = (dateStr) => {
             if (!dateStr) return null;
             const s = String(dateStr).trim();
@@ -434,20 +482,28 @@
                 setLoading(true);
                 let successCount = 0;
 
-                // [STEP 1] Fetch Trash Data First (Priority)
+                // [STEP 1] Fetch Trash Data First (Priority: Always GViz for reliability)
                 let deletedSet = new Set();
-                try {
-                    // Always fetch fresh trash data from GViz using timestamp
-                    const trashUrl = getGvizUrl(trashSheetId, '0');
-                    const trashRows = await fetchAndParse(trashUrl);
-                    if (trashRows && trashRows.length > 1) { // Skip header
-                        trashRows.slice(1).forEach(r => {
-                            if (r[0]) deletedSet.add(String(r[0]).trim()); // Assume Title is in first column (A)
-                        });
-                    }
-                    console.log("Trash loaded:", deletedSet.size, "items");
-                } catch (e) {
-                    console.error("Failed to load trash data:", e);
+                if (trashSheetId) {
+                     try {
+                         // Always fetch fresh trash data from GViz using timestamp
+                         // Adding 't' parameter to bust cache
+                         const trashUrl = getGvizUrl(trashSheetId, '0'); 
+                         const trashRows = await fetchAndParse(trashUrl);
+                         
+                         if (trashRows && trashRows.length > 1) { 
+                             // Skip header row (index 0)
+                             trashRows.slice(1).forEach(r => {
+                                 // Column A (index 0) contains the Title
+                                 if (r[0]) {
+                                     deletedSet.add(String(r[0]).trim());
+                                 }
+                             });
+                         }
+                         console.log("Trash loaded from GViz:", deletedSet.size, "items");
+                     } catch (e) {
+                         console.error("Failed to load trash data:", e);
+                     }
                 }
 
                 // [STEP 2] Fetch other data
