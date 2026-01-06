@@ -51,32 +51,44 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
         .group:hover .delete-btn { opacity: 1; }
         
-        /* 긴장감을 주는 붉은 배경 애니메이션 */
+        /* 긴장감을 주는 붉은 배경 애니메이션 (매출없음용) */
         @keyframes urgentPulse {
             0%, 100% { background-color: rgba(69, 10, 10, 0.5); border-color: rgba(220, 38, 38, 0.6); box-shadow: 0 0 10px rgba(220, 38, 38, 0.2) inset; }
             50% { background-color: rgba(127, 29, 29, 0.7); border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 30px rgba(220, 38, 38, 0.5) inset; }
         }
         .urgent-box { animation: urgentPulse 1.5s infinite; }
 
-        /* Resizer Styles */
+        /* 긴급 문구 번쩍임 효과 */
+        @keyframes flashUrgent {
+            0%, 50%, 100% { opacity: 1; transform: scale(1); }
+            25%, 75% { opacity: 0.5; transform: scale(0.98); }
+        }
+        .flash-urgent { animation: flashUrgent 0.8s infinite; }
+
+        /* 마감 임박 애니메이션 (공고용) - 은은하게 */
+        /* 번쩍임 제거하고 은은한 배경만 유지 */
+        
+        /* Resizer Styles - Improved Hit Area & Z-Index */
         .resizer-v {
-            width: 6px;
+            width: 8px; /* 넓힘 */
             cursor: col-resize;
             background-color: transparent;
             transition: background-color 0.2s;
             flex-shrink: 0;
-            z-index: 20;
+            z-index: 50; /* 최상위 */
+            touch-action: none;
         }
         .resizer-v:hover, .resizer-v.resizing {
             background-color: #3b82f6; /* Blue-500 */
         }
         .resizer-h {
-            height: 6px;
+            height: 8px; /* 넓힘 */
             cursor: row-resize;
             background-color: transparent;
             transition: background-color 0.2s;
             flex-shrink: 0;
-            z-index: 20;
+            z-index: 50; /* 최상위 */
+            touch-action: none;
         }
         .resizer-h:hover, .resizer-h.resizing {
             background-color: #3b82f6;
@@ -97,7 +109,7 @@
 
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-        // --- 아이콘 (생략 없이 사용) ---
+        // --- 아이콘 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
             <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
@@ -173,22 +185,80 @@
             return val.toLocaleString();
         };
 
-        const getDday = (dateStr) => {
-            if (!dateStr) return "-";
-            const cleanDate = dateStr.replace(/[^0-9]/g, '');
-            if (cleanDate.length !== 8) return dateStr; 
-            const year = cleanDate.substring(0, 4);
-            const month = cleanDate.substring(4, 6);
-            const day = cleanDate.substring(6, 8);
-            const target = new Date(`${year}-${month}-${day}`);
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            target.setHours(0,0,0,0);
-            const diff = target - today;
-            const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
-            if (diffDays < 0) return "마감";
-            if (diffDays === 0) return "D-Day";
-            return `D-${diffDays}`;
+        // --- NEW: D-Day 파싱 함수 (날짜 계산 안하고 텍스트 그대로 읽음) ---
+        const parseDdayInfo = (str) => {
+            if (!str) return { days: 9999, label: '-' };
+            const s = String(str).trim().toUpperCase();
+
+            // 1. "D-Day", "D-5", "D-13", "D+3" 등 D-Day 형식 텍스트 그대로 인식
+            
+            // D-Day (당일)
+            if (s === 'D-DAY' || s === 'D-0') {
+                return { days: 0, label: 'D-Day' };
+            }
+
+            // D-XX (남은 날짜)
+            const dMinus = s.match(/D\s*-\s*(\d+)/);
+            if (dMinus) {
+                const days = parseInt(dMinus[1]);
+                return { days: days, label: `D-${days}` };
+            }
+
+            // D+XX (마감 지남)
+            const dPlus = s.match(/D\s*\+\s*(\d+)/);
+            if (dPlus) {
+                // 마감된 것은 정렬 순위 낮게 (음수 처리 등)
+                // 여기서는 정렬 시 "마감" 그룹으로 보내기 위해 -1 (또는 -days)로 처리
+                // 사용자가 "D-13", "D-2" 등 남은 것 위주로 보므로
+                // 마감된 것은 days를 음수로 두어 정렬 시 아래로 보냄.
+                return { days: -parseInt(dPlus[1]), label: '마감' };
+            }
+
+            // "마감" 텍스트
+            if (s.includes('마감')) {
+                return { days: -1, label: '마감' };
+            }
+
+            // 2. 만약 날짜 형식이면 (혹시 몰라 남겨둠 - 거의 안 쓰일 듯)
+            const date = parseDateString(s);
+            if (date) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                date.setHours(0,0,0,0);
+                const diff = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
+                const label = diff < 0 ? "마감" : (diff === 0 ? "D-Day" : `D-${diff}`);
+                return { days: diff, label: label };
+            }
+
+            // 3. 알 수 없는 형식
+            return { days: 9999, label: s };
+        };
+
+        // 기존 날짜 파서 (백업용)
+        const parseDateString = (dateStr) => {
+            if (!dateStr) return null;
+            const s = String(dateStr).trim();
+            if (!s || s === 'undefined' || s === 'null') return null;
+            let y, m, d;
+            const partsMatch = s.match(/(\d{2,4})[\.\-\/년\s]+(\d{1,2})[\.\-\/월\s]+(\d{1,2})/);
+            if (partsMatch) { y = parseInt(partsMatch[1]); m = parseInt(partsMatch[2]) - 1; d = parseInt(partsMatch[3]); } 
+            else {
+                const numericMatch8 = s.match(/(20\d{2})(\d{2})(\d{2})/);
+                if (numericMatch8) { y = parseInt(numericMatch8[1]); m = parseInt(numericMatch8[2]) - 1; d = parseInt(numericMatch8[3]); } 
+                else {
+                    const numericMatch6 = s.match(/(\d{2})(\d{2})(\d{2})/);
+                    if (numericMatch6) { y = parseInt(numericMatch6[1]) + 2000; m = parseInt(numericMatch6[2]) - 1; d = parseInt(numericMatch6[3]); } 
+                    else {
+                        const date = new Date(s);
+                        if (!isNaN(date.getTime()) && date.getFullYear() > 1900) return date;
+                        return null;
+                    }
+                }
+            }
+            if (y < 100) y += 2000;
+            const date = new Date(y, m, d);
+            if (isNaN(date.getTime()) || y < 2000 || y > 2100) return null;
+            return date;
         };
 
         const normalizeMonth = (str) => {
@@ -198,10 +268,7 @@
             const ymdMatch = s.match(/(\d{4})[.\-/년]\s*(\d{1,2})/);
             if (ymdMatch) return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}`;
             const monthMatch = s.match(/^(\d{1,2})(월)?$/);
-            if (monthMatch) {
-                const m = parseInt(monthMatch[1]);
-                if (m >= 1 && m <= 12) return `2025-${String(m).padStart(2, '0')}`;
-            }
+            if (monthMatch) { const m = parseInt(monthMatch[1]); if (m >= 1 && m <= 12) return `2025-${String(m).padStart(2, '0')}`; }
             return s; 
         };
 
@@ -216,8 +283,15 @@
             ['1월','100000000'], ['2월','100000000'], ['3월','150000000'], ['4월','150000000'], ['5월','150000000'], ['6월','150000000'],
             ['7월','200000000'], ['8월','200000000'], ['9월','200000000'], ['10월','200000000'], ['11월','200000000'], ['12월','200000000']
         ];
-        const MOCK_NARA = [{title:'나라장터 데이터 로딩중...', dday:'-', url:''}];
-        const MOCK_SUPPORT = [{title:'지원사업 데이터 로딩중...', status:'-', color:'slate', url:''}];
+        
+        const MOCK_NARA = [
+            {title:'(테스트) 긴급 공고 - D-2', date: 'D-2', agency:'조달청', url:''},
+            {title:'(테스트) 일반 공고 - D-13', date: 'D-13', agency:'한국전력', url:''}
+        ].map(item => { const info = parseDdayInfo(item.date); return { ...item, dday: info.label, daysRemaining: info.days, isDeleted: false }; });
+
+        const MOCK_SUPPORT = [
+            {title:'(테스트) 긴급 지원사업 - D-Day', date: 'D-Day', agency:'중기부', url:''}
+        ].map(item => { const info = parseDdayInfo(item.date); return { ...item, status: info.label, daysRemaining: info.days, color: 'red', isDeleted: false }; });
 
         // --- Data Editor ---
         const DataEditor = ({ activityData, salesData, targetData, colMap, onSave, onClose }) => {
@@ -251,7 +325,7 @@
                             <button onClick={()=>setActiveTab('target')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 ${activeTab==='target'?'text-slate-200 border-b-2 border-slate-400 bg-slate-800':'text-slate-400'}`}><Icons.Target size={14}/> Target</button>
                         </div>
                         <div className="flex-1 overflow-auto p-4 bg-slate-800 text-white">
-                            {/* Editor Tables (Same as before) */}
+                            {/* Editor Tables */}
                             {activeTab === 'sales' && (<div><table className="w-full text-sm text-left text-slate-400"><thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2 w-24">날짜</th><th className="px-3 py-2">담당자</th><th className="px-3 py-2 w-32">매출액</th><th className="px-3 py-2 w-16">삭제</th></tr></thead><tbody className="divide-y divide-slate-700">{localSales.map((r,i)=>(<tr key={i}><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white" value={r[colMap.date]||''} onChange={e=>updateSales(i,colMap.date,e.target.value)}/></td><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white" value={r[colMap.manager]||''} onChange={e=>updateSales(i,colMap.manager,e.target.value)}/></td><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white text-right" value={r[colMap.revenue]||''} onChange={e=>updateSales(i,colMap.revenue,e.target.value)}/></td><td className="p-1 text-center"><button onClick={()=>removeSales(i)}><Icons.Trash className="text-red-400"/></button></td></tr>))}</tbody></table><button onClick={addSales} className="mt-3 flex items-center gap-1 text-xs text-emerald-400 font-bold px-2 py-1 border border-emerald-900 bg-emerald-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button></div>)}
                             {activeTab === 'activity' && (<div><table className="w-full text-sm text-left text-slate-400"><thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2">담당자</th><th className="px-3 py-2">활동 유형</th><th className="px-3 py-2 w-16">삭제</th></tr></thead><tbody className="divide-y divide-slate-700">{localActivity.map((r,i)=>(<tr key={i}><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white" value={r.person||''} onChange={e=>updateActivity(i,'person',e.target.value)}/></td><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white" value={r.type||''} onChange={e=>updateActivity(i,'type',e.target.value)}/></td><td className="p-1 text-center"><button onClick={()=>removeActivity(i)}><Icons.Trash className="text-red-400"/></button></td></tr>))}</tbody></table><button onClick={addActivity} className="mt-3 flex items-center gap-1 text-xs text-blue-400 font-bold px-2 py-1 border border-blue-900 bg-blue-900/20 rounded"><Icons.Plus size={12}/> 행 추가</button></div>)}
                             {activeTab === 'target' && (<div><table className="w-full text-sm text-left text-slate-400"><thead className="text-xs uppercase bg-slate-700 text-slate-200 sticky top-0"><tr><th className="px-3 py-2">월</th><th className="px-3 py-2">목표 금액</th><th className="px-3 py-2 w-16">삭제</th></tr></thead><tbody className="divide-y divide-slate-700">{localTargets.map((r,i)=>(<tr key={i}><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white" value={r[0]||''} onChange={e=>updateTarget(i,0,e.target.value)}/></td><td className="p-1"><input className="w-full bg-slate-900/50 border border-slate-600 rounded px-2 py-1 text-white text-right" value={r[1]||''} onChange={e=>updateTarget(i,1,e.target.value)}/></td><td className="p-1 text-center"><button onClick={()=>removeTarget(i)}><Icons.Trash className="text-red-400"/></button></td></tr>))}</tbody></table><button onClick={addTarget} className="mt-3 flex items-center gap-1 text-xs text-slate-400 font-bold px-2 py-1 border border-slate-700 bg-slate-800 rounded"><Icons.Plus size={12}/> 행 추가</button></div>)}
@@ -298,8 +372,10 @@
             
             const [actColMap, setActColMap] = useState({ name: 2, type: 3 });
             const [colMap, setColMap] = useState({ date: 0, manager: 2, client: 3, count: 4, revenue: 7 });
-            const [naraColMap, setNaraColMap] = useState({ title: 0, date: 1, agency: 2, url: 4, trash: 7 });
-            const [supportColMap, setSupportColMap] = useState({ title: 0, date: 1, agency: 2, url: 4, trash: 7 });
+            
+            // [FIXED] Updated default URL column index to 5 (Column F) for both
+            const [naraColMap, setNaraColMap] = useState({ title: 0, date: 1, agency: 2, url: 5, trash: 7 });
+            const [supportColMap, setSupportColMap] = useState({ title: 0, date: 1, agency: 2, url: 5, trash: 7 });
 
             // Layout State
             const [layout, setLayout] = useState({
@@ -315,6 +391,7 @@
 
             const startResize = (type, e) => {
                 e.preventDefault();
+                e.stopPropagation(); // prevent bubbling issues
                 setIsResizing(true);
                 const startX = e.clientX;
                 const startY = e.clientY;
@@ -346,12 +423,12 @@
 
                 const stopResize = () => {
                     setIsResizing(false);
-                    window.removeEventListener('mousemove', doResize);
-                    window.removeEventListener('mouseup', stopResize);
+                    document.removeEventListener('mousemove', doResize);
+                    document.removeEventListener('mouseup', stopResize);
                 };
 
-                window.addEventListener('mousemove', doResize);
-                window.addEventListener('mouseup', stopResize);
+                document.addEventListener('mousemove', doResize);
+                document.addEventListener('mouseup', stopResize);
             };
 
             const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}`;
@@ -434,11 +511,29 @@
                         const parsedNara = naraRows.slice(1).map(r => {
                             let rawTitle = r[naraColMap.title] || '';
                             let title = String(rawTitle).replace(/^undefinedv?/, '').trim();
-                            // [NEW] Check against deletedSet instead of column mapping
+                            
+                            // [FIXED] Use parseDdayInfo with naraColMap
+                            let dateRaw = r[naraColMap.date];
+                            let info = parseDdayInfo(dateRaw);
+                            
+                            if (info.days === 9999) {
+                                // Fallback search in other columns
+                                for(let i=0; i<r.length; i++) {
+                                    if(i === naraColMap.title || i === naraColMap.agency) continue; 
+                                    const fallbackInfo = parseDdayInfo(r[i]);
+                                    if(fallbackInfo.days !== 9999) {
+                                        info = fallbackInfo;
+                                        break;
+                                    }
+                                }
+                            }
+
                             const isDeleted = deletedSet.has(title);
+
                             return {
                                 title: title,
-                                dday: getDday(r[naraColMap.date] || ''),
+                                dday: info.label,
+                                daysRemaining: info.days,
                                 agency: r[naraColMap.agency] || '',
                                 url: r[naraColMap.url] || '',
                                 isDeleted: isDeleted
@@ -453,17 +548,33 @@
                     const supportRows = await fetchAndParse(getGvizUrl(naraSheetId, cleanGid));
                     if (supportRows && supportRows.length > 1) {
                         const parsedSupport = supportRows.slice(1).map(r => {
-                            const dateVal = r[supportColMap.date] || '';
-                            let rawTitle = r[supportColMap.title] || '';
+                            let rawTitle = r[naraColMap.title] || ''; // Use naraColMap for shared config
                             let title = String(rawTitle).replace(/^undefinedv?/, '').trim();
-                             // [NEW] Check against deletedSet instead of column mapping
+                            
+                            // [FIXED] Use parseDdayInfo with naraColMap
+                            let dateRaw = r[naraColMap.date]; // Use naraColMap for shared config
+                            let info = parseDdayInfo(dateRaw);
+                            
+                            if (info.days === 9999) {
+                                for(let i=0; i<r.length; i++) {
+                                    if(i === naraColMap.title || i === naraColMap.agency) continue; // Use naraColMap for shared config
+                                    const fallbackInfo = parseDdayInfo(r[i]);
+                                    if(fallbackInfo.days !== 9999) {
+                                        info = fallbackInfo;
+                                        break;
+                                    }
+                                }
+                            }
+
                             const isDeleted = deletedSet.has(title);
+
                             return {
                                 title: title,
-                                status: getDday(dateVal),
-                                color: getDday(dateVal) === '마감' ? 'red' : 'emerald',
-                                agency: r[supportColMap.agency] || '', 
-                                url: r[supportColMap.url] || '',
+                                status: info.label,
+                                daysRemaining: info.days,
+                                color: info.days <= 5 && info.days >= 0 ? 'red' : 'emerald',
+                                agency: r[naraColMap.agency] || '', // Use naraColMap for shared config
+                                url: r[naraColMap.url] || '', // Use naraColMap for shared config
                                 isDeleted: isDeleted
                             };
                         }).filter(r => r.title);
@@ -473,7 +584,7 @@
 
                 setIsLiveSource(successCount > 0);
                 setLoading(false);
-            }, [salesSheetId, naraSheetId, trashSheetId, activityGid, salesGid, actColMap, colMap, naraColMap, supportColMap, isManual, naraGid, supportGid]);
+            }, [salesSheetId, naraSheetId, trashSheetId, activityGid, salesGid, actColMap, colMap, naraColMap, isManual, naraGid, supportGid]); // removed supportColMap from dep as we use naraColMap
 
             useEffect(() => { fetchData(); const t = setInterval(fetchData, 600000); return () => clearInterval(t); }, [fetchData]);
 
@@ -487,12 +598,39 @@
             const safeNara = useMemo(() => (naraData && naraData.length > 0) ? naraData : MOCK_NARA, [naraData]);
             const safeSupport = useMemo(() => (supportData && supportData.length > 0) ? supportData : MOCK_SUPPORT, [supportData]);
 
+            // 정렬 로직 수정: daysRemaining 기준 (작은게 위로, 음수/마감은 아래로)
+            const sortData = (data) => {
+                return [...data].sort((a, b) => {
+                    // 파싱 실패(9999) 처리: 맨 뒤로
+                    if (a.daysRemaining === 9999) return 1;
+                    if (b.daysRemaining === 9999) return -1;
+
+                    const aActive = a.daysRemaining >= 0;
+                    const bActive = b.daysRemaining >= 0;
+
+                    // 둘 다 진행 중 (0 이상) -> 임박한 순 (작은 숫자)
+                    if (aActive && bActive) return a.daysRemaining - b.daysRemaining;
+                    
+                    // a만 진행 중 -> a 위로
+                    if (aActive && !bActive) return -1;
+                    
+                    // b만 진행 중 -> b 위로
+                    if (!aActive && bActive) return 1;
+
+                    // 둘 다 마감됨 (음수) -> 덜 오래된 마감(큰 음수)이 위로? 혹은 그냥 둠
+                    // 여기서는 "최근 마감"이 위로 오게 처리 (예: -1 > -5)
+                    return b.daysRemaining - a.daysRemaining;
+                });
+            };
+
             const visibleNara = useMemo(() => {
-                return safeNara.filter(item => showTrash ? item.isDeleted : !item.isDeleted);
+                const filtered = safeNara.filter(item => showTrash ? item.isDeleted : !item.isDeleted);
+                return sortData(filtered);
             }, [safeNara, showTrash]);
 
             const visibleSupport = useMemo(() => {
-                return safeSupport.filter(item => showTrash ? item.isDeleted : !item.isDeleted);
+                const filtered = safeSupport.filter(item => showTrash ? item.isDeleted : !item.isDeleted);
+                return sortData(filtered);
             }, [safeSupport, showTrash]);
 
             const processedActivityGroups = useMemo(() => {
@@ -648,16 +786,19 @@
                             {/* Row 1: Sales & Top 3 */}
                             <div style={{ height: `${layout.rightRow1Height}%` }} className="flex flex-row min-h-0" ref={row1ContainerRef}>
                                 <div style={{ width: `${layout.row1Split}%` }} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col min-h-0 shadow-lg">
-                                    <div className="flex items-center gap-2 mb-1 text-emerald-400 font-bold text-base"><Icons.DollarSign size={16}/> Revenue Status <span className="text-white ml-1 text-sm truncate">[총 매출 {formatKoreanCurrency(totalRevenue)}원]</span></div>
+                                    <div className="flex items-center gap-2 mb-1 text-emerald-400 font-bold text-base"><Icons.DollarSign size={16}/> Revenue Status <span className="text-white ml-1 text-sm truncate">[총 매출 {formatKoreanCurrency(totalRevenue)}원 / 목표 20억]</span></div>
                                     <div className="flex-1 min-h-0">
                                         {totalRevenue > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData.filter(d=>d.매출액>0).sort((a,b)=>b.매출액-a.매출액)} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}><defs><linearGradient id="revenueStatusGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f97316" stopOpacity={0.9}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0.9}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} /><XAxis dataKey="담당자" stroke="#94a3b8" tick={{fontSize: 11, fontWeight: 'bold', fill: '#ffffff'}} interval={0} /><YAxis stroke="#94a3b8" tick={{fontSize: 10, fill: '#ffffff'}} tickFormatter={v=>v>=10000?`${v/10000}만`:v} /><Tooltip cursor={{fill: '#334155', opacity: 0.2}} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '11px', color: '#fff' }} formatter={(val) => val.toLocaleString()} /><Bar dataKey="매출액" fill="url(#revenueStatusGrad)" radius={[4, 4, 0, 0]} maxBarSize={80}><LabelList dataKey="매출액" position="top" fill="#fff" fontSize={11} fontWeight="bold" formatter={formatKoreanCurrency} /></Bar></BarChart></ResponsiveContainer>
                                         ) : (
                                             <div className="h-full flex flex-col items-center justify-center urgent-box border-4 rounded-xl relative overflow-hidden">
-                                                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-900/40 via-transparent to-transparent animate-pulse"></div>
-                                                <Icons.AlertTriangle size={56} className="mb-2 text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,1)] z-10"/>
-                                                <p className="text-4xl font-black text-red-500 tracking-tighter drop-shadow-[0_0_10px_rgba(220,38,38,0.8)] z-10 mb-2">매출 없음!</p>
-                                                <div className="bg-red-600 text-white px-4 py-1 rounded-full text-lg font-bold animate-bounce shadow-[0_0_20px_rgba(239,68,68,0.6)] z-10 flex items-center gap-2">
+                                                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-600/20 via-transparent to-transparent animate-pulse"></div>
+                                                
+                                                {/* 텍스트만 깔끔하게 중앙 배치 */}
+                                                <p className="text-2xl font-black text-red-500 tracking-tighter drop-shadow-[0_0_10px_rgba(220,38,38,0.8)] mb-3 z-10 text-center">매출 없음!</p>
+
+                                                {/* 긴급 문구: 사이즈 축소 및 심플화 */}
+                                                <div className="bg-red-600/90 text-white px-3 py-1 rounded-full text-sm font-bold shadow-[0_0_15px_rgba(239,68,68,0.6)] z-10 flex items-center gap-2 flash-urgent border border-white/20">
                                                     <span>🚨</span> 긴급: 매출 발생 필요 <span>🚨</span>
                                                 </div>
                                             </div>
@@ -741,14 +882,17 @@
                                                 {showTrash ? '나라장터 (휴지통)' : '나라장터(물품/용역)'}
                                             </h3>
                                             <ul className="space-y-1 text-xs text-slate-300 flex-1 overflow-y-auto min-h-0 pr-1 custom-scrollbar">
-                                                {visibleNara.map((item, i) => (
-                                                    <li key={i} className="list-item px-2 py-1 rounded border-b border-slate-800/50 group relative">
+                                                {visibleNara.map((item, i) => {
+                                                    // [NEW] Highlight logic: Red if <= 5 days remaining and not expired
+                                                    const isUrgent = item.daysRemaining >= 0 && item.daysRemaining <= 5;
+                                                    return (
+                                                    <li key={i} className={`list-item px-2 py-1 rounded border-b group relative transition-colors ${isUrgent ? 'bg-red-900/20 border-red-500/30' : 'border-slate-800/50'}`}>
                                                         <div className="flex justify-between items-center w-full">
                                                             <div className="flex flex-col overflow-hidden w-full cursor-pointer mr-2" onClick={() => item.url && window.open(item.url, '_blank')}>
-                                                                <span className="truncate flex-1 font-bold group-hover:text-blue-300 transition-colors text-slate-200 text-xs">{item.title}</span>
+                                                                <span className={`truncate flex-1 font-bold transition-colors text-xs ${isUrgent ? 'text-red-100' : 'text-slate-200 group-hover:text-blue-300'}`}>{item.title}</span>
                                                                 <div className="flex items-center text-[10px] text-slate-500 mt-0">
                                                                     <span className="truncate max-w-[70%]">{item.agency}</span>
-                                                                    <span className={`ml-2 font-bold whitespace-nowrap ${item.dday?.includes('마감') ? 'text-red-400' : 'text-amber-500'}`}>
+                                                                    <span className={`ml-2 font-bold whitespace-nowrap ${item.dday?.includes('마감') ? 'text-slate-500' : (isUrgent ? 'text-red-400' : 'text-amber-500')}`}>
                                                                         [{item.dday}]
                                                                     </span>
                                                                     <div className="ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -774,7 +918,7 @@
                                                             </div>
                                                         </div>
                                                     </li>
-                                                ))}
+                                                )})}
                                                 {visibleNara.length === 0 && <li className="text-center text-slate-500 p-4">{showTrash ? "휴지통이 비었습니다." : "데이터 없음"}</li>}
                                             </ul>
                                         </div>
@@ -785,14 +929,17 @@
                                                 {showTrash ? '지원사업 (휴지통)' : '지원사업'}
                                             </h3>
                                             <ul className="space-y-1 text-xs text-slate-300 flex-1 overflow-y-auto min-h-0 pr-1 custom-scrollbar">
-                                                {visibleSupport.map((item, i) => (
-                                                    <li key={i} className="list-item px-2 py-1 rounded border-b border-slate-800/50 group relative">
+                                                {visibleSupport.map((item, i) => {
+                                                    // [NEW] Highlight logic: Red if <= 5 days remaining and not expired
+                                                    const isUrgent = item.daysRemaining >= 0 && item.daysRemaining <= 5;
+                                                    return (
+                                                    <li key={i} className={`list-item px-2 py-1 rounded border-b group relative transition-colors ${isUrgent ? 'bg-red-900/20 border-red-500/30' : 'border-slate-800/50'}`}>
                                                         <div className="flex justify-between items-center w-full">
                                                             <div className="flex flex-col overflow-hidden w-full cursor-pointer mr-2" onClick={() => item.url && window.open(item.url, '_blank')}>
-                                                                <span className="truncate flex-1 font-bold group-hover:text-blue-300 transition-colors text-slate-200 text-xs">{item.title}</span>
+                                                                <span className={`truncate flex-1 font-bold transition-colors text-xs ${isUrgent ? 'text-red-100' : 'text-slate-200 group-hover:text-blue-300'}`}>{item.title}</span>
                                                                 <div className="flex items-center text-[10px] text-slate-500 mt-0">
                                                                     <span className="truncate max-w-[70%]">{item.agency}</span>
-                                                                    <span className={`ml-2 font-bold whitespace-nowrap ${item.status?.includes('마감') ? 'text-red-400' : 'text-emerald-500'}`}>
+                                                                    <span className={`ml-2 font-bold whitespace-nowrap ${item.status?.includes('마감') ? 'text-slate-500' : (isUrgent ? 'text-red-400' : 'text-emerald-500')}`}>
                                                                         [{item.status}]
                                                                     </span>
                                                                     <div className="ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -818,7 +965,7 @@
                                                             </div>
                                                         </div>
                                                     </li>
-                                                ))}
+                                                )})}
                                                 {visibleSupport.length === 0 && <li className="text-center text-slate-500 p-4">{showTrash ? "휴지통이 비었습니다." : "데이터 없음"}</li>}
                                             </ul>
                                         </div>
