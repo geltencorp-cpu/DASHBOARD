@@ -156,6 +156,7 @@
             return arr;
         };
 
+        // [MODIFIED] Added timestamp to prevent caching
         const extractGid = (input) => {
             if (!input) return '';
             try {
@@ -167,6 +168,9 @@
                 return (match && match[1]) ? match[1] : input;
             }
         };
+        
+        // [MODIFIED] Updated getGvizUrl to include timestamp
+        const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&t=${Date.now()}`;
 
         const parseCurrency = (str) => {
             if (!str) return 0;
@@ -494,6 +498,7 @@
                 // [NEW] Fetch Trash Data First
                 let deletedSet = new Set();
                 if (trashSheetId) {
+                     // [MODIFIED] Added timestamp to getGvizUrl call for trash sheet as well
                      const trashRows = await fetchAndParse(getGvizUrl(trashSheetId, '0'));
                      if (trashRows && trashRows.length > 0) {
                          // Assume Title is in Column A (Index 0)
