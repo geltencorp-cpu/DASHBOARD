@@ -65,9 +65,6 @@
         }
         .flash-urgent { animation: flashUrgent 0.8s infinite; }
 
-        /* 마감 임박 애니메이션 (공고용) - 은은하게 */
-        /* 번쩍임 제거하고 은은한 배경만 유지 */
-        
         /* Resizer Styles - Improved Hit Area & Z-Index */
         .resizer-v {
             width: 8px; /* 넓힘 */
@@ -109,14 +106,13 @@
 
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-        // --- 아이콘 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
             <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
         const Icons = {
             LayoutDashboard: (p) => <Icon {...p}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></Icon>,
             RefreshCw: (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
-            Settings: (p) => <Icon {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>,
+            Settings: (p) => <Icon {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>,
             Briefcase: (p) => <Icon {...p}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></Icon>,
             Layers: (p) => <Icon {...p}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></Icon>,
             DollarSign: (p) => <Icon {...p}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></Icon>,
@@ -211,10 +207,6 @@
             // D+XX (마감 지남)
             const dPlus = s.match(/D\s*\+\s*(\d+)/);
             if (dPlus) {
-                // 마감된 것은 정렬 순위 낮게 (음수 처리 등)
-                // 여기서는 정렬 시 "마감" 그룹으로 보내기 위해 -1 (또는 -days)로 처리
-                // 사용자가 "D-13", "D-2" 등 남은 것 위주로 보므로
-                // 마감된 것은 days를 음수로 두어 정렬 시 아래로 보냄.
                 return { days: -parseInt(dPlus[1]), label: '마감' };
             }
 
@@ -435,7 +427,7 @@
                 document.addEventListener('mouseup', stopResize);
             };
 
-            const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+            const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&t=${Date.now()}`;
 
             const handleTrashAction = async (title, type, action) => {
                 if (!scriptUrl) {
@@ -495,16 +487,33 @@
                     if (salesRows.length > 1) { setSalesData(salesRows.slice(1)); successCount++; }
                 }
                 
-                // [NEW] Fetch Trash Data First
+                // [NEW] Fetch Trash Data First (Try Script URL first, then fallback to GViz)
                 let deletedSet = new Set();
-                if (trashSheetId) {
-                     // [MODIFIED] Added timestamp to getGvizUrl call for trash sheet as well
+                let trashLoaded = false;
+
+                if (scriptUrl) {
+                    try {
+                        const res = await fetch(scriptUrl + '?action=read&no_cache=' + Date.now()); 
+                        if (res.ok) {
+                            const json = await res.json();
+                            if (json.status === 'success' && Array.isArray(json.data)) {
+                                json.data.forEach(t => deletedSet.add(String(t).trim()));
+                                trashLoaded = true;
+                                console.log("Trash loaded from Script:", deletedSet.size);
+                            }
+                        }
+                    } catch (e) {
+                        console.log("Script fetch failed, falling back to GViz", e);
+                    }
+                }
+
+                if (!trashLoaded && trashSheetId) {
                      const trashRows = await fetchAndParse(getGvizUrl(trashSheetId, '0'));
                      if (trashRows && trashRows.length > 0) {
-                         // Assume Title is in Column A (Index 0)
                          trashRows.forEach(r => {
                              if(r[0]) deletedSet.add(String(r[0]).trim());
                          });
+                         console.log("Trash loaded from GViz:", deletedSet.size);
                      }
                 }
 
@@ -589,7 +598,7 @@
 
                 setIsLiveSource(successCount > 0);
                 setLoading(false);
-            }, [salesSheetId, naraSheetId, trashSheetId, activityGid, salesGid, actColMap, colMap, naraColMap, isManual, naraGid, supportGid]); // removed supportColMap from dep as we use naraColMap
+            }, [salesSheetId, naraSheetId, trashSheetId, activityGid, salesGid, actColMap, colMap, naraColMap, isManual, naraGid, supportGid, scriptUrl]); // Added scriptUrl to deps
 
             useEffect(() => { fetchData(); const t = setInterval(fetchData, 600000); return () => clearInterval(t); }, [fetchData]);
 
