@@ -80,8 +80,17 @@
     <div id="root" class="h-screen w-screen bg-slate-900"></div>
 
     <script type="text/babel">
+        // ResizeObserver Loop Error 억제
+        const resizeObserverLoopErr = /Loop limit exceeded/;
+        window.addEventListener('error', (e) => {
+            if (resizeObserverLoopErr.test(e.message)) {
+                e.stopImmediatePropagation();
+            }
+        });
+
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
+        // --- 아이콘 ---
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
             <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
@@ -128,6 +137,7 @@
             return arr;
         };
 
+        // [MODIFIED] Added timestamp to prevent caching
         const extractGid = (input) => {
             if (!input) return '';
             try {
@@ -141,10 +151,10 @@
         };
         
         // Standard Gviz URL
-        const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&_=${Date.now()}`;
-        
-        // [NEW] Export URL for direct CSV download (More reliable for simple reads)
-        const getExportUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/export?format=csv&gid=${gid}&_=${Date.now()}`;
+        const getGvizUrl = (sId, gid, query = '') => {
+            const q = query ? `&tq=${encodeURIComponent(query)}` : '&tq=';
+            return `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}${q}&_=${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        };
 
         const parseCurrency = (str) => {
             if (!str) return 0;
@@ -307,7 +317,7 @@
             const [trashStatus, setTrashStatus] = useState(null); // 'connected' | 'error' | null
 
             // [NEW] Default Script URL from User
-            const [scriptUrl, setScriptUrl] = useState('https://script.google.com/macros/s/AKfycbxgDywkmeNjsVGAJP_HbhJiwILb64Uq7g-TEs90q7dpCTZCSvcya8-pHJYRt_Ibijg/exec');
+            const [scriptUrl, setScriptUrl] = useState('https://script.google.com/macros/s/AKfycbzOZ2J9vQmtptJbCE6UcCuzvsCDMqgfI0YzQw0Gb0BxRzFf8J-rqAv3LlaYMSNGTxrj/exec');
 
             // IDs
             const [salesSheetId, setSalesSheetId] = useState('1W0OXOMzCvq6KlBwWpnnXQTgcOaC1gK4zftTEq5qmfns'); 
@@ -381,10 +391,11 @@
                 document.addEventListener('mouseup', stopResize);
             };
 
-            const getGvizUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}&_=${Date.now()}`;
-            
-            // [NEW] Export URL for reliable fetching
-            const getExportUrl = (sId, gid) => `https://docs.google.com/spreadsheets/d/${sId}/export?format=csv&gid=${gid}&_=${Date.now()}`;
+            const getGvizUrl = (sId, gid, query = '') => {
+                const q = query ? `&tq=${encodeURIComponent(query)}` : '&tq=';
+                // [FIX] Fallback to GViz TQ, it is the most reliable for public sheets
+                return `https://docs.google.com/spreadsheets/d/${sId}/gviz/tq?tqx=out:csv&gid=${gid}${q}&_=${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            };
 
             const handleTrashAction = async (title, type, action) => {
                 if (!scriptUrl) {
@@ -414,6 +425,39 @@
                 }
             };
 
+            // [NEW] Load data via JSONP (Cross-Domain safe)
+            const loadSheetDataJsonp = (sheetId, gid, query = 'select *') => {
+                return new Promise((resolve, reject) => {
+                    const callbackName = 'google_viz_callback_' + Math.floor(Math.random() * 100000);
+                    
+                    // JSONP callback function
+                    window[callbackName] = (data) => {
+                        delete window[callbackName];
+                        document.body.removeChild(script);
+                        if (data && data.table && data.table.rows) {
+                            // Convert GViz JSON format to array of arrays
+                            const rows = data.table.rows.map(row => {
+                                return row.c.map(cell => cell ? (cell.v !== null ? cell.v : '') : '');
+                            });
+                            resolve(rows);
+                        } else {
+                            resolve([]);
+                        }
+                    };
+
+                    const script = document.createElement('script');
+                    const q = encodeURIComponent(query);
+                    // Use tqx=responseHandler:callbackName to trigger JSONP
+                    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:${callbackName}&gid=${gid}&tq=${q}&_=${Date.now()}`;
+                    script.onerror = (err) => {
+                        delete window[callbackName];
+                        document.body.removeChild(script);
+                        reject(err);
+                    };
+                    document.body.appendChild(script);
+                });
+            };
+
             const fetchAndParse = async (url) => {
                 try {
                     const res = await fetch(url, { cache: "no-store" });
@@ -432,35 +476,30 @@
                 setLoading(true);
                 let successCount = 0;
 
-                // [STEP 1] Fetch Trash Data First using EXPORT URL (More reliable for read-only)
+                // [STEP 1] Fetch Trash Data First using JSONP (Strongest Method)
                 let deletedSet = new Set();
                 if (trashSheetId) {
                      try {
-                         // Use export format instead of GViz for more reliable simple data fetching
-                         const trashUrl = getExportUrl(trashSheetId, '0'); 
-                         const trashRows = await fetchAndParse(trashUrl);
+                         setTrashStatus({ type: 'loading', msg: 'JSONP 연결 시도 중...' });
+                         // Load only Column A (titles) using JSONP
+                         const trashRows = await loadSheetDataJsonp(trashSheetId, '0', 'select A');
                          
-                         if (trashRows && trashRows.length > 1) { 
-                             // Skip header row (index 0)
-                             trashRows.slice(1).forEach(r => {
-                                 // Column A (index 0) contains the Title
-                                 // [FIX] remove spaces/special chars for robust comparison
+                         if (trashRows && trashRows.length > 0) { 
+                             trashRows.forEach(r => {
+                                 // r is an array of values for a row. r[0] is Column A.
                                  if (r[0]) {
-                                     // Remove spaces, tabs, and parentheses content if needed for loose matching
-                                     // Here we stick to removing whitespace for safety
                                      const cleanTitle = String(r[0]).trim().replace(/\s+/g, '');
-                                     if(cleanTitle) deletedSet.add(cleanTitle);
+                                     if(cleanTitle && cleanTitle.toLowerCase() !== 'title') deletedSet.add(cleanTitle);
                                  }
                              });
                              setTrashStatus({ type: 'success', count: deletedSet.size });
+                             console.log("Trash loaded items (JSONP):", deletedSet.size);
                          } else {
-                             // If empty or just header
-                             setTrashStatus({ type: 'success', count: 0 }); 
+                             setTrashStatus({ type: 'success', count: 0, msg: '데이터 없음' }); 
                          }
-                         console.log("Trash loaded items:", deletedSet.size);
                      } catch (e) {
-                         console.error("Failed to load trash data:", e);
-                         setTrashStatus({ type: 'error', msg: '연결 실패' });
+                         console.error("Failed to load trash data (JSONP):", e);
+                         setTrashStatus({ type: 'error', msg: 'JSONP 연결 실패' });
                      }
                 }
 
@@ -708,7 +747,9 @@
                                                 {trashStatus ? (
                                                     trashStatus.type === 'success' ? 
                                                     <span className="text-emerald-400 font-bold">✅ 연결 성공 ({trashStatus.count}개)</span> : 
-                                                    <span className="text-red-400 font-bold">❌ {trashStatus.msg}</span>
+                                                    (trashStatus.type === 'loading' ? 
+                                                    <span className="text-yellow-400 font-bold">⏳ {trashStatus.msg}</span> :
+                                                    <span className="text-red-400 font-bold">❌ {trashStatus.msg}</span>)
                                                 ) : <span className="text-slate-500">대기 중...</span>}
                                             </div>
                                         </div>
