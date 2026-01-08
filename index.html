@@ -80,14 +80,6 @@
     <div id="root" class="h-screen w-screen bg-slate-900"></div>
 
     <script type="text/babel">
-        // ResizeObserver Loop Error 억제
-        const resizeObserverLoopErr = /Loop limit exceeded/;
-        window.addEventListener('error', (e) => {
-            if (resizeObserverLoopErr.test(e.message)) {
-                e.stopImmediatePropagation();
-            }
-        });
-
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
         const Icon = ({ children, size = 16, className = "", color = "currentColor", onClick }) => (
@@ -226,10 +218,7 @@
             let s = String(str).trim();
             if (s.startsWith('#') || s === '') return '';
 
-            // [NEW] Dynamically get current year
             const currentYear = new Date().getFullYear();
-
-            // 1. "1월", "12월", "1", "01" 형식 처리 (올해 연도 자동 부여)
             const simpleMonthMatch = s.match(/^(\d{1,2})(월)?$/);
             if (simpleMonthMatch) {
                 const m = parseInt(simpleMonthMatch[1]);
@@ -238,14 +227,12 @@
                 }
             }
 
-            // 2. "2024-05", "2024.5", "24/5" 등 일반적인 날짜 파싱
             const date = parseDateString(s);
             if (date) {
                 const y = date.getFullYear();
                 const m = String(date.getMonth() + 1).padStart(2, '0');
                 return `${y}-${m}`;
             }
-            
             return ''; 
         };
 
@@ -351,9 +338,9 @@
             const [actColMap, setActColMap] = useState({ name: 2, type: 3 });
             const [colMap, setColMap] = useState({ date: 0, manager: 2, client: 3, count: 4, revenue: 7 });
             
-            // [FIXED] Updated default URL column index to 5 (Column F) for both
-            const [naraColMap, setNaraColMap] = useState({ title: 0, date: 1, agency: 2, url: 5, trash: 7 });
-            const [supportColMap, setSupportColMap] = useState({ title: 0, date: 1, agency: 2, url: 5, trash: 7 });
+            // [FIXED] Updated default URL column index for each mapping
+            const [naraColMap, setNaraColMap] = useState({ title: 0, date: 1, agency: 2, url: 4, trash: 7 }); // Nara URL E=4
+            const [supportColMap, setSupportColMap] = useState({ title: 0, date: 1, agency: 2, url: 5, trash: 7 }); // Support URL F=5
 
             // Layout State
             const [layout, setLayout] = useState({
@@ -565,7 +552,7 @@
                                 dday: info.label,
                                 daysRemaining: info.days,
                                 agency: r[naraColMap.agency] || '',
-                                url: r[naraColMap.url] || '',
+                                url: r[naraColMap.url] || '', // Use Correct URL column
                                 isDeleted: isDeleted
                             };
                         }).filter(r => r.title);
@@ -578,16 +565,16 @@
                     const supportRows = await fetchAndParse(getGvizUrl(naraSheetId, cleanGid));
                     if (supportRows && supportRows.length > 1) {
                         const parsedSupport = supportRows.slice(1).map(r => {
-                            let rawTitle = r[naraColMap.title] || ''; // Use naraColMap for shared config
+                            let rawTitle = r[supportColMap.title] || ''; 
                             let title = String(rawTitle).replace(/^undefinedv?/, '').trim();
                             
-                            // [FIXED] Use parseDdayInfo with naraColMap
-                            let dateRaw = r[naraColMap.date]; // Use naraColMap for shared config
+                            // [FIXED] Use parseDdayInfo with supportColMap
+                            let dateRaw = r[supportColMap.date];
                             let info = parseDdayInfo(dateRaw);
                             
                             if (info.days === 9999) {
                                 for(let i=0; i<r.length; i++) {
-                                    if(i === naraColMap.title || i === naraColMap.agency) continue; // Use naraColMap for shared config
+                                    if(i === supportColMap.title || i === supportColMap.agency) continue;
                                     const fallbackInfo = parseDdayInfo(r[i]);
                                     if(fallbackInfo.days !== 9999) {
                                         info = fallbackInfo;
@@ -605,8 +592,8 @@
                                 status: info.label,
                                 daysRemaining: info.days,
                                 color: info.days <= 5 && info.days >= 0 ? 'red' : 'emerald',
-                                agency: r[naraColMap.agency] || '', // Use naraColMap for shared config
-                                url: r[naraColMap.url] || '', // Use naraColMap for shared config
+                                agency: r[supportColMap.agency] || '',
+                                url: r[supportColMap.url] || '', // Use Correct URL column
                                 isDeleted: isDeleted
                             };
                         }).filter(r => r.title);
@@ -819,6 +806,13 @@
                                                 <div><label className="text-[10px] text-slate-500">날짜</label><input type="number" value={naraColMap.date} onChange={e=>setNaraColMap({...naraColMap, date:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
                                                 <div><label className="text-[10px] text-slate-500">기관</label><input type="number" value={naraColMap.agency} onChange={e=>setNaraColMap({...naraColMap, agency:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
                                                 <div><label className="text-[10px] text-slate-500">URL</label><input type="number" value={naraColMap.url} onChange={e=>setNaraColMap({...naraColMap, url:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-1 text-white"/></div>
+                                                <div><label className="text-[10px] text-red-400">휴지통</label><input type="number" value={naraColMap.trash} onChange={e=>setNaraColMap({...naraColMap, trash:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-red-900/50 text-red-200 rounded px-1 py-1"/></div>
+                                            </div>
+                                            
+                                            {/* Support Program URL separate setting */}
+                                            <div className="grid grid-cols-5 gap-2 mb-3 pt-2 border-t border-slate-700/50">
+                                                <div className="col-span-3 flex items-center"><label className="text-[10px] text-indigo-400 font-bold">지원사업 URL 열 (별도 설정)</label></div>
+                                                <div className="col-span-2"><input type="number" value={supportColMap.url} onChange={e=>setSupportColMap({...supportColMap, url:parseInt(e.target.value)})} className="w-full bg-slate-800 border border-indigo-500/50 text-indigo-200 rounded px-1 py-1"/></div>
                                             </div>
                                         </div>
                                         <button onClick={handleApplySettings} className="w-full bg-blue-600 py-2 rounded text-white font-bold text-sm hover:bg-blue-500">설정 적용</button>
